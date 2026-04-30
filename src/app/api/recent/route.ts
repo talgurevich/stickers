@@ -8,18 +8,15 @@ const LIMIT = 12;
 
 // Public feed of recently fulfilled orders. Returns minimal data only —
 // thumbnail URL, size, approximate timestamp. NO phone, name, address,
-// email or order id. Use anon-safe data only since this endpoint is
-// reachable without auth from the homepage.
-//
-// TODO before public launch: add an opt-in flag at checkout time (a
-// `display_publicly` column on orders) and filter on it here. The privacy
-// policy currently does not disclose public display of submitted images.
+// email or order id. Filtered by orders.display_publicly = true (opt-out
+// model: customers see the checkbox at checkout, default checked).
 export async function GET() {
   const sb = serverClient();
   const { data, error } = await sb
     .from("orders")
     .select("id, image_url, size_mm, created_at")
     .not("printful_order_id", "is", null)
+    .eq("display_publicly", true)
     .order("created_at", { ascending: false })
     .limit(LIMIT);
   if (error) {

@@ -45,6 +45,8 @@ export default function ConfigurePage({
     zip: "",
     country: "IL",
   });
+  // Default opt-in to the public feed; user can uncheck to opt out.
+  const [displayPublicly, setDisplayPublicly] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -76,7 +78,7 @@ export default function ConfigurePage({
       const res = await fetch(`/api/sessions/${id}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ size, quantity, address }),
+        body: JSON.stringify({ size, quantity, address, displayPublicly }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -246,6 +248,27 @@ export default function ConfigurePage({
                 dir="ltr"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 text-right dark:border-zinc-800 dark:bg-zinc-900/50">
+              <input
+                type="checkbox"
+                checked={displayPublicly}
+                onChange={(e) => setDisplayPublicly(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-emerald-600"
+              />
+              <span className="flex-1 text-sm">
+                <span className="block font-medium">
+                  להציג את המדבקה בפיד הציבורי
+                </span>
+                <span className="block text-xs text-zinc-500">
+                  התמונה תוצג ללא שם או פרטי קשר ב־
+                  &quot;הודפסו לאחרונה&quot; שבדף הבית. הסירו את הסימון אם
+                  אתם מעדיפים להזמין באופן פרטי.
+                </span>
+              </span>
+            </label>
           </div>
         </section>
 

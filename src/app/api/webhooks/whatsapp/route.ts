@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     try {
       await greenApi.sendText(
         msg.senderPhone,
-        "קיבלנו את המדבקה אבל לא מצאנו הזמנה פתוחה לטלפון הזה. כנסו ל־stickers.wallaura.art ופתחו הזמנה חדשה — נחבר אוטומטית.",
+        "קיבלנו את המדבקה אבל לא מצאנו הזמנה פתוחה לטלפון הזה. כנסו ל־wallaura.art ופתחו הזמנה חדשה — נחבר אוטומטית.",
       );
     } catch {
       /* swallow */

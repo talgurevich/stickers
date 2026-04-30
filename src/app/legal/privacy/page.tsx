@@ -58,7 +58,20 @@ export default function PrivacyPage() {
           <li>To prevent fraud and abuse and to comply with the law.</li>
         </ul>
 
-        <h2 className="text-lg font-semibold">3. Who we share it with</h2>
+        <h2 className="text-lg font-semibold">3. Public &quot;recently printed&quot; feed</h2>
+        <p>
+          The homepage shows a small grid of sticker images from recently
+          fulfilled orders, labeled &quot;הודפסו לאחרונה.&quot; Only the
+          image, the size, and the approximate timestamp are displayed —
+          never your name, phone, address, or email. You control whether
+          your sticker appears there: at checkout, an opt-out checkbox lets
+          you order privately. Defaults to opt-in (the box is checked); if
+          you uncheck it, your sticker is never shown publicly. You can
+          also email us at <a href={`mailto:${CONTACT_EMAIL}`} className="underline">{CONTACT_EMAIL}</a> at
+          any time to remove a previously displayed image from the feed.
+        </p>
+
+        <h2 className="text-lg font-semibold">4. Who we share it with</h2>
         <p>
           We share the minimum amount of data necessary with third-party
           processors who help us run the service:
@@ -91,7 +104,7 @@ export default function PrivacyPage() {
           for marketing purposes.
         </p>
 
-        <h2 className="text-lg font-semibold">4. How long we keep it</h2>
+        <h2 className="text-lg font-semibold">5. How long we keep it</h2>
         <ul className="list-disc space-y-1 pr-6">
           <li>
             <strong>Open browsing sessions</strong> (no order placed) expire
@@ -110,7 +123,7 @@ export default function PrivacyPage() {
           </li>
         </ul>
 
-        <h2 className="text-lg font-semibold">5. Your rights</h2>
+        <h2 className="text-lg font-semibold">6. Your rights</h2>
         <p>
           Subject to applicable law, you may ask us to access, correct, or
           delete the personal data we hold about you, and to restrict or
@@ -121,7 +134,7 @@ export default function PrivacyPage() {
           obligation even after a deletion request.
         </p>
 
-        <h2 className="text-lg font-semibold">6. Security</h2>
+        <h2 className="text-lg font-semibold">7. Security</h2>
         <p>
           We use HTTPS for all traffic, store images in a private bucket
           accessed via short-lived signed URLs, and limit access to
@@ -130,27 +143,27 @@ export default function PrivacyPage() {
           please contact us.
         </p>
 
-        <h2 className="text-lg font-semibold">7. Children</h2>
+        <h2 className="text-lg font-semibold">8. Children</h2>
         <p>
           The service is not intended for children under 18. We do not
           knowingly collect personal data from children. If you believe a
           child has submitted data to us, contact us and we will delete it.
         </p>
 
-        <h2 className="text-lg font-semibold">8. International transfers</h2>
+        <h2 className="text-lg font-semibold">9. International transfers</h2>
         <p>
           Some of our processors are based outside Israel (UK, EU, US). When
           we transfer data internationally we rely on contractual safeguards
           that those processors offer (such as standard contractual clauses).
         </p>
 
-        <h2 className="text-lg font-semibold">9. Changes</h2>
+        <h2 className="text-lg font-semibold">10. Changes</h2>
         <p>
           We may update this policy from time to time. The &quot;Last
           updated&quot; date at the top reflects the most recent change.
         </p>
 
-        <h2 className="text-lg font-semibold">10. Contact</h2>
+        <h2 className="text-lg font-semibold">11. Contact</h2>
         <p>
           Privacy questions or requests: <a href={`mailto:${CONTACT_EMAIL}`} className="underline">{CONTACT_EMAIL}</a>.
         </p>

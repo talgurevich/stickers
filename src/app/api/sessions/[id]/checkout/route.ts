@@ -23,6 +23,7 @@ type CheckoutBody = {
     phone?: string;
     email?: string;
   };
+  displayPublicly?: boolean;
 };
 
 export async function POST(
@@ -42,6 +43,8 @@ export async function POST(
     return NextResponse.json({ error: "bad-json" }, { status: 400 });
   }
   const { size, quantity, address } = body;
+  // Default to opt-in (true) — matches the unchecked-to-opt-out checkbox UX.
+  const displayPublicly = body.displayPublicly !== false;
   if (!size || !quantity) {
     return NextResponse.json({ error: "config-incomplete" }, { status: 400 });
   }
@@ -78,6 +81,7 @@ export async function POST(
       product_cost_agorot: price.productAgorot,
       shipping_cost_agorot: price.shippingAgorot,
       total_agorot: price.totalAgorot,
+      display_publicly: displayPublicly,
     })
     .select()
     .single();
