@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import RecentFeed from "./_components/RecentFeed";
 
 const HERO_IMAGE_URL =
   "https://images.unsplash.com/photo-1572950947476-26a6e4111e80?fm=jpg&q=70&w=2400&auto=format&fit=crop";
@@ -105,6 +106,8 @@ export default function Home() {
             לכניסה לחשבון
           </a>
         </div>
+
+        <RecentFeed />
       </div>
     </main>
   );
