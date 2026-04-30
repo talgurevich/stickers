@@ -178,7 +178,10 @@ export async function submitOrderForPrinting(
       // Prodigi accepts free-form merchantReference; UUID with or without
       // dashes both fit (no length cap surfaced in docs / observed errors).
       merchantReference: order.id,
-      shippingMethod: "Standard",
+      // Budget = FedEx P2P UnTrak from the GB2 lab. Slowest method but the
+      // only one that matches the shipping cost embedded in lib/pricing.ts;
+      // submitting Standard would silently burn ~$36 per order on shipping.
+      shippingMethod: "Budget",
       recipient: {
         name: a.name,
         email: a.email ?? order.email ?? undefined,
