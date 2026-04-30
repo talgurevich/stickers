@@ -44,6 +44,13 @@ export const env = {
   // Inbound — needed only when verifying incoming Printful webhooks.
   printfulWebhookSecret: () => required("PRINTFUL_WEBHOOK_SECRET"),
 
+  // Prodigi (replacing Printful for IL shipping).
+  prodigi: () => ({
+    baseUrl:
+      process.env.PRODIGI_BASE_URL ?? "https://api.sandbox.prodigi.com/v4.0",
+    apiKey: required("PRODIGI_API_KEY"),
+  }),
+
   resendApiKey: () => required("RESEND_API_KEY"),
 
   supabase: () => ({

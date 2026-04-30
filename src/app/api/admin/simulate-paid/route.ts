@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { markOrderPaid, submitOrderToPrintful } from "@/lib/orders";
+import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
 
 export const runtime = "nodejs";
 
@@ -24,6 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "order-not-found" }, { status: 404 });
   }
 
-  const submitted = await submitOrderToPrintful(body.orderId);
+  const submitted = await submitOrderForPrinting(body.orderId);
   return NextResponse.json({ paid: true, submitted });
 }

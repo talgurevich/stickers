@@ -4,13 +4,12 @@ import { priceFor } from "@/lib/pricing";
 import { generatePaymentLink, PayPlusError } from "@/lib/payplus";
 import { env } from "@/lib/env";
 import { serverClient } from "@/lib/supabase";
-import type { CutType, SizeMm } from "@/lib/printful-catalog";
+import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
 
 export const runtime = "nodejs";
 
 type CheckoutBody = {
-  sizeMm: SizeMm;
-  cut: CutType;
+  size: StickerSize;
   quantity: number;
   address: {
     name: string;
@@ -39,15 +38,12 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "bad-json" }, { status: 400 });
   }
-  const { sizeMm, cut, quantity, address } = body;
-  if (!sizeMm || !cut || !quantity) {
+  const { size, quantity, address } = body;
+  if (!size || !quantity) {
     return NextResponse.json({ error: "config-incomplete" }, { status: 400 });
   }
-  if (![50, 70, 100].includes(sizeMm)) {
-    return NextResponse.json({ error: "invalid-sizeMm" }, { status: 400 });
-  }
-  if (!["kiss_cut", "rectangle"].includes(cut)) {
-    return NextResponse.json({ error: "invalid-cut" }, { status: 400 });
+  if (!isStickerSize(size)) {
+    return NextResponse.json({ error: "invalid-size" }, { status: 400 });
   }
   if (quantity < 1 || quantity > 50) {
     return NextResponse.json({ error: "invalid-quantity" }, { status: 400 });
@@ -59,12 +55,12 @@ export async function POST(
     return NextResponse.json({ error: "image-missing" }, { status: 400 });
   }
 
-  const price = priceFor(sizeMm, cut, quantity);
+  const price = priceFor(size, quantity);
 
   // Persist the order row up-front so the PayPlus IPN has something to mark
   // paid when the callback arrives. Print pipeline picks this up post-payment.
   // Store the *storage path* (not a signed URL) so we can mint fresh signed
-  // URLs whenever needed (browser preview, Printful pull-time, etc.).
+  // URLs whenever needed (browser preview, Prodigi pull-time, etc.).
   const sb = serverClient();
   const { data: order, error: orderErr } = await sb
     .from("orders")
@@ -73,9 +69,9 @@ export async function POST(
       phone_e164: session.phoneE164,
       email: address.email ?? null,
       image_url: session.imagePath,
-      print_image_url: session.imagePath, // upscale pipeline TBD; same image for now
-      size_mm: sizeMm,
-      cut_type: cut,
+      print_image_url: session.imagePath,
+      size_mm: size, // re-purposed column: stores the StickerSize key
+      cut_type: "kiss_cut", // Prodigi MVP: kiss-cut only
       quantity,
       shipping_address: address,
       product_cost_agorot: price.productAgorot,
@@ -111,10 +107,13 @@ export async function POST(
     });
   } catch (e) {
     if (e instanceof PayPlusError) {
-      return NextResponse.json({ error: e.message, raw: e.raw }, { status: 502 });
+      return NextResponse.json(
+        { error: e.message, raw: e.raw, orderId: order.id },
+        { status: 502 },
+      );
     }
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: e instanceof Error ? e.message : String(e), orderId: order.id },
       { status: 500 },
     );
   }

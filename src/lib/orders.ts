@@ -1,17 +1,21 @@
-// Order lifecycle — between PayPlus IPN and Printful submission.
+// Order lifecycle — between PayPlus IPN and Prodigi submission.
 //
-// On payment-success: mark the order paid, then create a Printful order using
-// the variant ID from our matrix and a signed image URL Printful can fetch.
-// Persist printful_order_id back on the row.
+// On payment-success: mark the order paid, then create a Prodigi order with
+// the right SKU (from prodigi-catalog) and a signed image URL Prodigi can
+// pull during fulfillment. Persist prodigi_order_id back on the row.
 //
-// Idempotent: callable multiple times for the same order (e.g. PayPlus
-// IPN retries) — we no-op if already paid+submitted.
+// Idempotent: callable multiple times for the same order — re-runs short-
+// circuit if a fulfillment id already exists.
 
 import { serverClient, STORAGE_BUCKET } from "./supabase";
-import { createOrder as printfulCreateOrder, PrintfulError } from "./printful";
-import { getVariantId, type CutType, type SizeMm } from "./printful-catalog";
+import { createOrder as prodigiCreateOrder, ProdigiError } from "./prodigi";
+import {
+  STICKER_VARIANTS,
+  isStickerSize,
+  type StickerSize,
+} from "./prodigi-catalog";
 
-const PRINT_URL_TTL_SEC = 7 * 24 * 60 * 60; // 7 days — covers Printful pulling the file at production time
+const PRINT_URL_TTL_SEC = 7 * 24 * 60 * 60; // 7 days — covers Prodigi pulling the file at production time
 
 export type OrderRow = {
   id: string;
@@ -20,8 +24,13 @@ export type OrderRow = {
   email: string | null;
   image_url: string;
   print_image_url: string;
-  size_mm: SizeMm;
-  cut_type: CutType;
+  /**
+   * Re-purposed: stores the Prodigi sticker size key ("small" | "medium" | "large" | "xlarge").
+   * The column was originally an int sized to Printful's 50/70/100 mm options;
+   * the check constraint was dropped in 0003_prodigi_sizes.sql.
+   */
+  size_mm: StickerSize | string;
+  cut_type: string;
   quantity: number;
   shipping_address: {
     name: string;
@@ -34,7 +43,7 @@ export type OrderRow = {
   };
   payplus_transaction_id: string | null;
   paid_at: string | null;
-  printful_order_id: string | null;
+  printful_order_id: string | null; // re-purposed: holds Prodigi order id (ord_…)
   printful_status: string | null;
 };
 
@@ -64,10 +73,6 @@ export async function markOrderPaid(
   return data as OrderRow;
 }
 
-/**
- * Build a fresh long-lived signed URL for Printful to pull the print file from.
- * Storage path lives in print_image_url (or image_url as fallback).
- */
 async function signPrintFile(order: OrderRow): Promise<string> {
   const path = order.print_image_url || order.image_url;
   const { data, error } = await serverClient()
@@ -80,79 +85,71 @@ async function signPrintFile(order: OrderRow): Promise<string> {
 }
 
 export type SubmitResult =
-  | { kind: "submitted"; printfulOrderId: number }
-  | { kind: "already-submitted"; printfulOrderId: string }
-  | { kind: "no-variant"; sizeMm: SizeMm; cut: CutType }
+  | { kind: "submitted"; fulfillmentOrderId: string }
+  | { kind: "already-submitted"; fulfillmentOrderId: string }
+  | { kind: "no-variant"; size: string }
   | { kind: "error"; message: string };
 
-/**
- * Send the order to Printful. Idempotent — if printful_order_id is already
- * set, returns the existing id without recreating.
- */
-export async function submitOrderToPrintful(
+export async function submitOrderForPrinting(
   orderId: string,
 ): Promise<SubmitResult> {
   const order = await getOrder(orderId);
   if (!order) return { kind: "error", message: "order-not-found" };
 
   if (order.printful_order_id) {
-    return { kind: "already-submitted", printfulOrderId: order.printful_order_id };
-  }
-
-  const variantId = getVariantId(order.cut_type, order.size_mm);
-  if (!variantId) {
     return {
-      kind: "no-variant",
-      sizeMm: order.size_mm,
-      cut: order.cut_type,
+      kind: "already-submitted",
+      fulfillmentOrderId: order.printful_order_id,
     };
   }
+
+  if (!isStickerSize(order.size_mm)) {
+    return { kind: "no-variant", size: String(order.size_mm) };
+  }
+  const variant = STICKER_VARIANTS[order.size_mm];
 
   const printFileUrl = await signPrintFile(order);
   const a = order.shipping_address;
 
   try {
-    const r = await printfulCreateOrder({
-      // Printful caps external_id at 32 chars; UUIDs with dashes are 36.
-      // Strip dashes — still unique, deterministic, reversible.
-      external_id: order.id.replace(/-/g, ""),
+    const r = await prodigiCreateOrder({
+      // Prodigi accepts free-form merchantReference; UUID with or without
+      // dashes both fit (no length cap surfaced in docs / observed errors).
+      merchantReference: order.id,
+      shippingMethod: "Standard",
       recipient: {
         name: a.name,
-        address1: a.street,
-        city: a.city,
-        country_code: a.country,
-        zip: a.zip,
-        phone: a.phone ?? order.phone_e164,
         email: a.email ?? order.email ?? undefined,
+        phoneNumber: a.phone ?? `+${order.phone_e164}`,
+        address: {
+          line1: a.street,
+          townOrCity: a.city,
+          postalOrZipCode: a.zip,
+          countryCode: a.country, // "IL" supported
+        },
       },
       items: [
         {
-          quantity: order.quantity,
-          catalog_variant_id: variantId,
-          source: "catalog",
-          placements: [
-            {
-              placement: "default",
-              technique: "digital",
-              layers: [{ type: "file", url: printFileUrl }],
-            },
-          ],
+          sku: variant.sku,
+          copies: order.quantity,
+          sizing: "fillPrintArea",
+          assets: [{ printArea: "default", url: printFileUrl }],
         },
       ],
     });
 
-    const printfulOrderId = r.data.id;
+    const fulfillmentOrderId = r.order.id;
     await serverClient()
       .from("orders")
       .update({
-        printful_order_id: String(printfulOrderId),
-        printful_status: r.data.status ?? "submitted",
+        printful_order_id: fulfillmentOrderId,
+        printful_status: r.order.status?.stage ?? "submitted",
       })
       .eq("id", orderId);
 
-    return { kind: "submitted", printfulOrderId };
+    return { kind: "submitted", fulfillmentOrderId };
   } catch (e) {
-    if (e instanceof PrintfulError) {
+    if (e instanceof ProdigiError) {
       return { kind: "error", message: e.message };
     }
     return {

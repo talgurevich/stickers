@@ -4,7 +4,11 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { priceFor, formatIls, type PriceBreakdown } from "@/lib/pricing";
-import { getVariantId, type CutType, type SizeMm } from "@/lib/printful-catalog";
+import {
+  MVP_SIZES,
+  STICKER_VARIANTS,
+  type StickerSize,
+} from "@/lib/prodigi-catalog";
 
 type Address = {
   name: string;
@@ -20,16 +24,8 @@ type SessionView = {
   id: string;
   phone: string;
   status: string;
-  imageUrl?: string;
-  config?: {
-    sizeMm?: SizeMm;
-    cut?: CutType;
-    quantity?: number;
-    address?: Address;
-  };
+  imageUrl?: string | null;
 };
-
-const SIZES: SizeMm[] = [50, 70, 100];
 
 export default function ConfigurePage({
   params,
@@ -40,8 +36,7 @@ export default function ConfigurePage({
   const router = useRouter();
   const [session, setSession] = useState<SessionView | null>(null);
 
-  const [sizeMm, setSizeMm] = useState<SizeMm>(70);
-  const [cut, setCut] = useState<CutType>("kiss_cut");
+  const [size, setSize] = useState<StickerSize>("medium");
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState<Address>({
     name: "",
@@ -65,16 +60,14 @@ export default function ConfigurePage({
       });
   }, [id, router]);
 
-  // Lock 5 cm to die-cut: Printful doesn't sell a 2" kiss-cut. See BRIEF.md.
-  const variantId = getVariantId(cut, sizeMm);
-  const variantUnavailable = variantId === null;
-
   let price: PriceBreakdown | null = null;
   try {
-    price = priceFor(sizeMm, cut, quantity);
+    price = priceFor(size, quantity);
   } catch {
     price = null;
   }
+
+  const variant = STICKER_VARIANTS[size];
 
   async function pay() {
     setBusy(true);
@@ -83,7 +76,7 @@ export default function ConfigurePage({
       const res = await fetch(`/api/sessions/${id}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sizeMm, cut, quantity, address }),
+        body: JSON.stringify({ size, quantity, address }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -105,16 +98,19 @@ export default function ConfigurePage({
   }
 
   const canPay =
-    !variantUnavailable &&
     Boolean(price) &&
     Boolean(address.name && address.street && address.city && address.zip);
+
+  // Preview width — scale 1mm to ~2.4 px so the displayed sticker has roughly
+  // the right proportional feel on screen (capped by container).
+  const previewW = Math.min(420, variant.widthMm * 2.4);
+  const previewH = Math.min(420, variant.heightMm * 2.4);
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <h1 className="mb-8 text-3xl font-bold">בנו את המדבקה שלכם</h1>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
-        {/* LEFT: image + selectors */}
         <section className="space-y-8">
           <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center justify-center">
@@ -122,13 +118,13 @@ export default function ConfigurePage({
                 <Image
                   src={session.imageUrl}
                   alt="המדבקה שלך"
-                  width={320}
-                  height={320}
+                  width={420}
+                  height={420}
                   unoptimized
                   className="rounded-lg object-contain"
                   style={{
-                    width: `${sizeMm * 2.4}px`,
-                    height: `${sizeMm * 2.4}px`,
+                    width: `${previewW}px`,
+                    height: `${previewH}px`,
                     maxWidth: "100%",
                   }}
                 />
@@ -138,72 +134,40 @@ export default function ConfigurePage({
             </div>
           </div>
 
-          {/* Size */}
           <div>
             <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
               גודל
             </h2>
             <div className="grid grid-cols-3 gap-3">
-              {SIZES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSizeMm(s)}
-                  className={
-                    "rounded-lg border-2 px-4 py-3 text-center transition " +
-                    (sizeMm === s
-                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                      : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
-                  }
-                >
-                  <div className="text-lg font-bold">{s / 10} ס״מ</div>
-                  <div className="text-xs text-zinc-500">{s / 25.4 < 2.1 ? "~2″" : s / 25.4 < 3 ? "~3″" : "~4″"}</div>
-                </button>
-              ))}
+              {MVP_SIZES.map((s) => {
+                const v = STICKER_VARIANTS[s];
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setSize(s)}
+                    className={
+                      "rounded-lg border-2 px-4 py-3 text-center transition " +
+                      (size === s
+                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                        : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
+                    }
+                  >
+                    <div className="text-base font-bold">{v.labelHe.split(" · ")[0]}</div>
+                    <div className="text-xs text-zinc-500">
+                      {v.labelHe.split(" · ")[1]}
+                    </div>
+                    <div className="mt-1 text-[10px] uppercase text-zinc-400">
+                      {v.shape === "square" ? "ריבוע" : "מלבן"}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              חיתוך kiss-cut על נייר ויניל מט. עמיד למים, עד 18 חודשים בחוץ.
+            </p>
           </div>
 
-          {/* Cut */}
-          <div>
-            <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              סוג חיתוך
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setCut("kiss_cut")}
-                disabled={getVariantId("kiss_cut", sizeMm) === null}
-                className={
-                  "rounded-lg border-2 px-4 py-3 text-right transition disabled:opacity-40 " +
-                  (cut === "kiss_cut"
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                    : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
-                }
-              >
-                <div className="font-bold">Kiss-cut</div>
-                <div className="text-xs text-zinc-500">
-                  על דף עם מסגרת לבנה
-                </div>
-              </button>
-              <button
-                onClick={() => setCut("rectangle")}
-                className={
-                  "rounded-lg border-2 px-4 py-3 text-right transition " +
-                  (cut === "rectangle"
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                    : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
-                }
-              >
-                <div className="font-bold">Die-cut</div>
-                <div className="text-xs text-zinc-500">חתוך לפי המדבקה</div>
-              </button>
-            </div>
-            {variantUnavailable && (
-              <p className="mt-2 text-xs text-amber-600">
-                בגודל זה אין כרגע אופציה ל־kiss-cut. בחר/י גודל אחר או die-cut.
-              </p>
-            )}
-          </div>
-
-          {/* Quantity */}
           <div>
             <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
               כמות
@@ -244,7 +208,6 @@ export default function ConfigurePage({
             </div>
           </div>
 
-          {/* Address */}
           <div>
             <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
               כתובת למשלוח (ישראל בלבד ב־MVP)
@@ -286,18 +249,13 @@ export default function ConfigurePage({
           </div>
         </section>
 
-        {/* RIGHT: order summary */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <div className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-lg font-bold">סיכום הזמנה</h3>
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <dt className="text-zinc-500">גודל</dt>
-                <dd>{sizeMm / 10} ס״מ</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">חיתוך</dt>
-                <dd>{cut === "kiss_cut" ? "Kiss-cut" : "Die-cut"}</dd>
+                <dd>{variant.labelHe}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">כמות</dt>
@@ -334,7 +292,8 @@ export default function ConfigurePage({
               </pre>
             )}
             <p className="text-xs text-zinc-500">
-              תשלום מאובטח דרך PayPlus. משלוח ל־7-14 ימי עסקים.
+              תשלום מאובטח דרך PayPlus. הדפסה ומשלוח דרך Prodigi (UK/EU);
+              משלוח 7-14 ימי עסקים לישראל.
             </p>
           </div>
         </aside>
