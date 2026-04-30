@@ -4,7 +4,7 @@ A web service that turns stickers from someone's WhatsApp library into physical 
 
 ## How users experience it
 
-1. Visit `stickers.wallaura.art`, enter their phone number.
+1. Visit `www.wallaura.art`, enter their phone number.
 2. Either upload a sticker file directly, or send a sticker to the service's WhatsApp number from the same phone.
 3. See a print mockup with size, cut type (kiss-cut / rectangle), and quantity options.
 4. Enter shipping address, pay via PayPlus.
@@ -19,7 +19,7 @@ WhatsApp is exclusively an alternative image input — every other step happens 
 [ WhatsApp Cloud API ]   [ PayPlus ]   [ Printful ]   [ Resend ]
         ↕                    ↕              ↕             ↑
         ↓                    ↓              ↓             │
-        └──────────── stickers.wallaura.art ──────────────────┘
+        └──────────── www.wallaura.art ──────────────────┘
                        (Next.js on Vercel)
                               ↕
                   ┌───────── Supabase ─────────┐
@@ -32,7 +32,7 @@ External services on top, our app in the middle, Supabase as backend. Every exte
 ## Stack
 
 - **Frontend + Backend**: Next.js 16 (App Router) on Vercel
-- **Domain**: `stickers.wallaura.art` (subdomain of an existing PayPlus-approved root)
+- **Domain**: `www.wallaura.art` (subdomain of an existing PayPlus-approved root)
 - **Database / Storage / Realtime**: Supabase
 - **Payment**: PayPlus (existing account, hosted page flow)
 - **Print fulfillment**: Printful API (V2 REST)
@@ -253,14 +253,14 @@ PRINTFUL_WEBHOOK_SECRET=
 RESEND_API_KEY=
 
 # App
-APP_URL=https://stickers.wallaura.art
+APP_URL=https://www.wallaura.art
 ```
 
 ## Build sequence
 
 Each step produces a testable milestone. Don't move on until the current one works.
 
-1. **Vercel + domain proof.** Deploy a hello-world Next.js to `stickers.wallaura.art`, run a real ₪1 PayPlus test transaction. This de-risks the subdomain decision before you build anything else — it's the one thing that could force a refactor.
+1. **Vercel + domain proof.** Deploy a hello-world Next.js to `www.wallaura.art`, run a real ₪1 PayPlus test transaction. This de-risks the subdomain decision before you build anything else — it's the one thing that could force a refactor.
 2. **Supabase + schema.** Apply migrations above, set up Storage bucket, enable Realtime publication on `sessions`.
 3. **Web-only flow.** Hebrew RTL configurator UI, direct upload path, address form, PayPlus checkout, order confirmation page. At the end of this step, the product ships orders without WhatsApp at all.
 4. **WhatsApp ingestion.** Green API instance setup, webhook handler, phone-based matching, Realtime push to the waiting page.
@@ -289,7 +289,7 @@ Each step produces a testable milestone. Don't move on until the current one wor
 
 ## Open decisions
 
-- Final domain choice (`stickers.wallaura.art` vs alternate)
+- Final domain choice (`www.wallaura.art` vs alternate)
 - Pricing model: cost-plus markup vs fixed prices per size
 - Upscaling strategy: skip / clipdrop / Real-ESRGAN dedicated
 - Brand voice for Hebrew WhatsApp messages: formal vs casual
