@@ -118,14 +118,28 @@ export default function StartPage({
           </button>
 
           {/* WhatsApp */}
-          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-300 bg-white p-6 text-center dark:border-zinc-700 dark:bg-zinc-900">
+          <a
+            href={
+              process.env.NEXT_PUBLIC_SERVICE_PHONE
+                ? `https://wa.me/${process.env.NEXT_PUBLIC_SERVICE_PHONE}?text=${encodeURIComponent("מצרפ.ת מדבקה")}`
+                : "#"
+            }
+            target="_blank"
+            rel="noopener"
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50/40 p-6 text-center transition hover:border-emerald-500 hover:bg-emerald-50 dark:border-emerald-700/60 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40"
+          >
             <div className="text-4xl">📱</div>
             <div className="font-semibold">שליחה בוואטסאפ</div>
+            {process.env.NEXT_PUBLIC_SERVICE_PHONE ? (
+              <div className="text-sm font-mono text-zinc-700 dark:text-zinc-200" dir="ltr">
+                +{process.env.NEXT_PUBLIC_SERVICE_PHONE.replace(/(\d{3})(\d{2})(\d{3})(\d{4})/, "$1 $2 $3 $4")}
+              </div>
+            ) : null}
             <div className="text-xs text-zinc-500">
-              שלחו את הסטיקר ממספר הטלפון שאיתו פתחתם את ההזמנה. ברגע שזה
-              יגיע, נמשיך אוטומטית.
+              לחצו לפתיחת וואטסאפ ושלחו את הסטיקר. ברגע שיגיע, נמשיך
+              אוטומטית.
             </div>
-          </div>
+          </a>
         </div>
 
         {uploading && (
