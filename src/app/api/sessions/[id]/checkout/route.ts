@@ -55,7 +55,7 @@ export async function POST(
   if (!address?.name || !address.street || !address.city || !address.zip) {
     return NextResponse.json({ error: "address-incomplete" }, { status: 400 });
   }
-  if (!session.imageUrl) {
+  if (!session.imagePath) {
     return NextResponse.json({ error: "image-missing" }, { status: 400 });
   }
 
@@ -63,6 +63,8 @@ export async function POST(
 
   // Persist the order row up-front so the PayPlus IPN has something to mark
   // paid when the callback arrives. Print pipeline picks this up post-payment.
+  // Store the *storage path* (not a signed URL) so we can mint fresh signed
+  // URLs whenever needed (browser preview, Printful pull-time, etc.).
   const sb = serverClient();
   const { data: order, error: orderErr } = await sb
     .from("orders")
@@ -70,8 +72,8 @@ export async function POST(
       session_id: session.id,
       phone_e164: session.phoneE164,
       email: address.email ?? null,
-      image_url: session.imageUrl,
-      print_image_url: session.imageUrl, // upscale pipeline TBD; same image for now
+      image_url: session.imagePath,
+      print_image_url: session.imagePath, // upscale pipeline TBD; same image for now
       size_mm: sizeMm,
       cut_type: cut,
       quantity,

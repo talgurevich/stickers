@@ -26,6 +26,8 @@ export type Session = {
   id: string;
   phoneE164: string;
   status: SessionStatus;
+  /** Bucket-relative storage path, e.g. "<id>/sticker.png". Server-side use. */
+  imagePath: string | null;
   /** Signed URL ready for the browser; null when no image attached yet. */
   imageUrl: string | null;
   createdAt: string;
@@ -53,6 +55,7 @@ async function rowToSession(r: Row): Promise<Session> {
     id: r.id,
     phoneE164: r.phone_e164,
     status: r.status,
+    imagePath: r.image_url,
     imageUrl: signed,
     createdAt: r.created_at,
     expiresAt: r.expires_at,
