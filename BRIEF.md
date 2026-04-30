@@ -16,7 +16,7 @@ WhatsApp is exclusively an alternative image input — every other step happens 
 ## Architecture overview
 
 ```
-[ WhatsApp Cloud API ]   [ PayPlus ]   [ Printful ]   [ Resend ]
+[ WhatsApp Cloud API ]   [ PayPlus ]   [ Prodigi ]   [ Resend ]
         ↕                    ↕              ↕             ↑
         ↓                    ↓              ↓             │
         └──────────── www.wallaura.art ──────────────────┘
@@ -27,7 +27,7 @@ WhatsApp is exclusively an alternative image input — every other step happens 
                   └────────────────────────────┘
 ```
 
-External services on top, our app in the middle, Supabase as backend. Every external integration is replaceable — Printful → local print shop, PayPlus → Stripe, Supabase → self-host — without touching the user-facing layer.
+External services on top, our app in the middle, Supabase as backend. Every external integration is replaceable — Prodigi → local print shop, PayPlus → Stripe, Supabase → self-host — without touching the user-facing layer.
 
 ## Stack
 
@@ -35,7 +35,7 @@ External services on top, our app in the middle, Supabase as backend. Every exte
 - **Domain**: `www.wallaura.art` (subdomain of an existing PayPlus-approved root)
 - **Database / Storage / Realtime**: Supabase
 - **Payment**: PayPlus (existing account, hosted page flow)
-- **Print fulfillment**: Printful API (V2 REST)
+- **Print fulfillment**: Prodigi Print API (V4.0)
 - **Email**: Resend
 - **WhatsApp**: Green API (managed WhatsApp Web gateway) for MVP; migrate to Meta Cloud API once volume or ban risk justifies
 - **Image processing**: `sharp` on Vercel Node runtime; optionally Real-ESRGAN for upscaling
@@ -44,7 +44,7 @@ External services on top, our app in the middle, Supabase as backend. Every exte
 
 **Vercel + Supabase + Next.js.** Same stack already proven on trainer-booking and HitQuote. Free tiers cover the MVP entirely.
 
-**Printful for fulfillment.** Free signup, self-serve API tokens (no sales call), sandbox environment, stickers as a first-class catalog category with kiss-cut and custom border options, V2 REST API with proper webhooks. Trade-off: 7–12 day shipping from EU production hubs vs 1–3 days from a local Israeli print shop. Accepted for MVP simplicity. Swap later without touching user-facing code.
+**Prodigi for fulfillment.** Originally specced as Printful, swapped to Prodigi 2026-04-30 after discovering Printful blocks Israel shipping entirely (verified live via API). Prodigi is a multi-print-provider POD platform that explicitly markets to Israel. Free signup, X-API-Key auth, V4.0 REST API. Sticker catalog: matt vinyl kiss-cut at 3"×4"/5.5"×5.5"/8.5"×8.5"/14"×14" (no die-cut, no gloss at this catalog tier). Trade-off vs Printful: simpler API, real IL coverage; shorter catalog (no holographic, no oddball cuts). Validated live end-to-end on 2026-04-30 — order `ord_65981689453153792` accepted with country_code IL.
 
 **Subdomain on existing domain (PayPlus reuse).** PayPlus typically approves at the registered-domain level; subdomains usually inherit coverage. **Verify this in step 1 of build sequence below** — if the account turns out to be locked to bare domain, fall back to `wallaura.art/stickers/*` via a Vercel rewrite.
 
@@ -121,7 +121,7 @@ POST  /api/sessions/:id/checkout       Create PayPlus payment page, return URL
 
 POST  /api/webhooks/whatsapp           Green API (MVP) / Meta Cloud API webhook
 POST  /api/webhooks/payplus            PayPlus IPN
-POST  /api/webhooks/printful           Printful order status webhook
+POST  /api/webhooks/printful           Prodigi order status webhook
 
 POST  /api/cron/cleanup                Vercel Cron: expire stale sessions, orphans
 ```
@@ -149,16 +149,17 @@ POST  /api/cron/cleanup                Vercel Cron: expire stale sessions, orpha
 - Use existing account
 - Hosted Payment Page flow: POST to PayPlus to create a payment page, redirect user to returned URL
 - IPN handler: **verify HMAC signature on every callback**. Their signing scheme has changed before — check current docs at implementation time
-- On successful transaction: mark order paid, queue Printful order creation
+- On successful transaction: mark order paid, queue Prodigi order creation
 
-### Printful
-- Sign up at printful.com; generate a Private Token in the Developer Portal
-- Auth: `Authorization: Bearer {token}`
-- Create order: `POST https://api.printful.com/v2/orders`
-- Sticker variant IDs: query the catalog endpoint; kiss-cut sticker has options for size and `custom_border_color`
-- Print file: pass a publicly accessible URL (Supabase Storage signed URL works)
-- Webhooks: subscribe to `package_shipped`, `package_returned`, `order_canceled`
-- Test in sandbox before flipping to production token
+### Prodigi
+- Sign up at prodigi.com; API key issued from dashboard
+- Live: `https://api.prodigi.com/v4.0` · Sandbox: `https://api.sandbox.prodigi.com/v4.0` (separate keys; sandbox key needs to be requested explicitly)
+- Auth: `X-API-Key: {key}` header
+- Create order: `POST /orders` with `recipient.address.countryCode: "IL"`, `items: [{ sku, copies, sizing, assets: [{ printArea: "default", url }] }]`
+- Sticker SKUs (matt kiss-cut, all global): `M-STI-3X4` (7.6×10 cm rectangle), `M-STI-5_5X5_5` (14×14), `M-STI-8_5X8_5` (21.6×21.6), `M-STI-14X14` (35.6×35.6) — pinned in `lib/prodigi-catalog.ts`
+- Print file: pass a publicly accessible URL (Supabase Storage signed URL works; minted at 7-day TTL in `lib/orders.ts`)
+- Orders default to `Draft` status; explicit confirmation step needed before fulfillment (TBD)
+- Webhooks: TBD — Prodigi has webhook support; not yet wired
 
 ### Resend
 - API key + verified sending domain
@@ -179,7 +180,7 @@ export const runtime = 'nodejs';
 ```
 
 ### Animated WhatsApp stickers
-Many WhatsApp stickers are multi-frame .webp animations. Printful expects a static image. Extract frame 0 with sharp before sending to print:
+Many WhatsApp stickers are multi-frame .webp animations. Prodigi expects a static image. Extract frame 0 with sharp before sending to print:
 ```typescript
 const buf = await sharp(input, { animated: false }).png().toBuffer();
 ```
@@ -214,7 +215,7 @@ On incoming WhatsApp message:
 5. Phone mismatch (user typed different number than they sent from) → reply on WhatsApp: "send from this number: +972…"
 
 ### Webhook reply timing
-PayPlus IPN and Printful webhooks both expect 200 within 10 seconds. Heavy work (creating Printful orders, processing images) goes to a queue table read by Vercel Cron, not done synchronously in the webhook handler.
+PayPlus IPN and Prodigi webhooks both expect 200 within 10 seconds. Heavy work (creating Prodigi orders, processing images) goes to a queue table read by Vercel Cron, not done synchronously in the webhook handler.
 
 ### Vercel Cron
 - `/api/cron/cleanup` runs every 5 minutes
@@ -245,7 +246,7 @@ PAYPLUS_API_KEY=
 PAYPLUS_SECRET_KEY=
 PAYPLUS_HMAC_SECRET=
 
-# Printful
+# Prodigi
 PRINTFUL_PRIVATE_TOKEN=
 PRINTFUL_WEBHOOK_SECRET=
 
@@ -264,7 +265,7 @@ Each step produces a testable milestone. Don't move on until the current one wor
 2. **Supabase + schema.** Apply migrations above, set up Storage bucket, enable Realtime publication on `sessions`.
 3. **Web-only flow.** Hebrew RTL configurator UI, direct upload path, address form, PayPlus checkout, order confirmation page. At the end of this step, the product ships orders without WhatsApp at all.
 4. **WhatsApp ingestion.** Green API instance setup, webhook handler, phone-based matching, Realtime push to the waiting page.
-5. **Printful integration.** Sandbox order creation, webhook handling, status updates on the order row.
+5. **Prodigi integration.** Sandbox order creation, webhook handling, status updates on the order row.
 6. **Notifications.** Resend transactional emails. WhatsApp messages for shipped / delivered (free-form via Green API for MVP).
 7. **Production cutover.** Live API tokens, end-to-end test with a 5 cm kiss-cut sticker on a real order.
 
@@ -282,7 +283,7 @@ Each step produces a testable milestone. Don't move on until the current one wor
 **Out (v1.1+):**
 - Multi-design sticker sheets
 - Animated stickers (lenticular print is exotic and costly)
-- Custom shapes beyond Printful defaults
+- Custom shapes beyond Prodigi defaults
 - Holographic / metallic finishes
 - B2B bulk orders
 - Subscriptions / sticker packs
@@ -294,11 +295,11 @@ Each step produces a testable milestone. Don't move on until the current one wor
 - Upscaling strategy: skip / clipdrop / Real-ESRGAN dedicated
 - Brand voice for Hebrew WhatsApp messages: formal vs casual
 - Logo / visual identity timing
-- **Sticker matrix gap (Printful)**: Printful does not sell a 2″ (≈5 cm) kiss-cut sticker. Available sticker sizes per cut on Printful V2 (verified 2026-04-30):
+- **Sticker matrix gap (Prodigi)**: Prodigi does not sell a 2″ (≈5 cm) kiss-cut sticker. Available sticker sizes per cut on Prodigi V2 (verified 2026-04-30):
   - Kiss-Cut (product 358): 3″ / 4″ / 5.5″ (no 2″)
   - Die-Cut (product 957): 2″ / 3″ / 4″ / 5″ / 6″
   Options for the MVP: (a) keep 5/7/10 cm but disable the 5 cm × kiss-cut cell in the configurator, (b) align all three sizes to Kiss-Cut's offering and ship 7.5/10/14 cm, (c) ship die-cut only. See `src/lib/printful-catalog.ts` for current matrix.
 
 ## What this brief is, and isn't
 
-This is the architecture landed on after design conversations. It assumes the product wedge is "print my WhatsApp sticker" — if the scope expands (custom designs, sticker sheets, B2B), revisit choices like Printful as the fulfillment partner. Intentionally MVP-shaped: every external service is replaceable; the boring core (Next.js + Postgres) is built to last.
+This is the architecture landed on after design conversations. It assumes the product wedge is "print my WhatsApp sticker" — if the scope expands (custom designs, sticker sheets, B2B), revisit choices like Prodigi as the fulfillment partner. Intentionally MVP-shaped: every external service is replaceable; the boring core (Next.js + Postgres) is built to last.
