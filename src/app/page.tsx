@@ -87,6 +87,13 @@ export default function Home() {
             לא נשלח לך הודעה עד שתבחר/י לעשות זאת.
           </p>
         </form>
+
+        <div className="pt-2 text-xs text-zinc-500">
+          כבר הזמנתם בעבר?{" "}
+          <a href="/account" className="underline">
+            לכניסה לחשבון
+          </a>
+        </div>
       </div>
     </main>
   );

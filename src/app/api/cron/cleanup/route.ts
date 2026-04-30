@@ -50,14 +50,22 @@ async function run(req: Request) {
 
   if (expiredSessions?.length) {
     const ids = expiredSessions.map((s) => s.id as string);
-    // Delete Storage blobs (folder-style — one image per session).
+    // Delete Storage blobs only when no order references them — otherwise
+    // reorder + the order confirmation page lose their print file.
     const paths: string[] = [];
     for (const s of expiredSessions) {
-      if (s.image_url) paths.push(s.image_url as string);
+      if (!s.image_url) continue;
+      const path = s.image_url as string;
+      const { count } = await sb
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .or(`image_url.eq.${path},print_image_url.eq.${path}`);
+      if ((count ?? 0) === 0) paths.push(path);
     }
     if (paths.length) {
       await sb.storage.from(STORAGE_BUCKET).remove(paths);
     }
+    result.blobsDeleted = paths.length;
     const del = await sb.from("sessions").delete().in("id", ids);
     result.sessionsDeleted = del.error ? 0 : ids.length;
   }

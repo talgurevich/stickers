@@ -5,6 +5,7 @@ import { generatePaymentLink, PayPlusError } from "@/lib/payplus";
 import { env } from "@/lib/env";
 import { serverClient } from "@/lib/supabase";
 import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
+import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
 
 export const runtime = "nodejs";
 
@@ -57,10 +58,8 @@ export async function POST(
 
   const price = priceFor(size, quantity);
 
-  // Persist the order row up-front so the PayPlus IPN has something to mark
-  // paid when the callback arrives. Print pipeline picks this up post-payment.
-  // Store the *storage path* (not a signed URL) so we can mint fresh signed
-  // URLs whenever needed (browser preview, Prodigi pull-time, etc.).
+  // Persist the order row up-front. Print pipeline picks this up after
+  // payment (or immediately, in test mode).
   const sb = serverClient();
   const { data: order, error: orderErr } = await sb
     .from("orders")
@@ -70,8 +69,8 @@ export async function POST(
       email: address.email ?? null,
       image_url: session.imagePath,
       print_image_url: session.imagePath,
-      size_mm: size, // re-purposed column: stores the StickerSize key
-      cut_type: "kiss_cut", // Prodigi MVP: kiss-cut only
+      size_mm: size,
+      cut_type: "kiss_cut",
       quantity,
       shipping_address: address,
       product_cost_agorot: price.productAgorot,
@@ -88,8 +87,24 @@ export async function POST(
   }
 
   await updateSessionStatus(session.id, "configuring");
-
   const appUrl = env.appUrl();
+
+  // --- Test mode: PayPlus disabled. Mark paid + submit to Prodigi as a
+  //     draft order, redirect to the order confirmation page. Flip
+  //     PAYMENTS_ENABLED=true to re-enable the PayPlus path.
+  if (process.env.PAYMENTS_ENABLED !== "true") {
+    await markOrderPaid(order.id, "test-mode");
+    const submission = await submitOrderForPrinting(order.id);
+    return NextResponse.json({
+      mode: "test",
+      orderId: order.id,
+      redirectUrl: `${appUrl}/order/${order.id}`,
+      submission,
+      breakdown: price,
+    });
+  }
+
+  // --- Live mode: PayPlus.
   try {
     const result = await generatePaymentLink({
       amount: price.totalAgorot / 100,
@@ -100,9 +115,11 @@ export async function POST(
       refUrlCallback: `${appUrl}/api/webhooks/payplus`,
     });
     return NextResponse.json({
+      mode: "live",
+      orderId: order.id,
+      redirectUrl: result.paymentPageLink,
       paymentPageLink: result.paymentPageLink,
       pageRequestUid: result.pageRequestUid,
-      orderId: order.id,
       breakdown: price,
     });
   } catch (e) {

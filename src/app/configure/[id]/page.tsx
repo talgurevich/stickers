@@ -83,7 +83,7 @@ export default function ConfigurePage({
         setErr(j.error ?? "שגיאה בפתיחת התשלום");
         return;
       }
-      window.location.href = j.paymentPageLink;
+      window.location.href = j.redirectUrl;
     } finally {
       setBusy(false);
     }
@@ -284,7 +284,7 @@ export default function ConfigurePage({
               disabled={!canPay || busy}
               className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-full bg-zinc-900 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
-              {busy ? "פותח דף תשלום..." : "מעבר לתשלום"}
+              {busy ? "שולח הזמנה..." : "אישור הזמנה (מצב בדיקה)"}
             </button>
             {err && (
               <pre className="rounded-md bg-red-50 p-3 text-right text-xs text-red-900 whitespace-pre-wrap dark:bg-red-950/40 dark:text-red-200">
@@ -292,8 +292,8 @@ export default function ConfigurePage({
               </pre>
             )}
             <p className="text-xs text-zinc-500">
-              תשלום מאובטח דרך PayPlus. הדפסה ומשלוח דרך Prodigi (UK/EU);
-              משלוח 7-14 ימי עסקים לישראל.
+              מצב בדיקה — אין חיוב כרגע. ההזמנה נשלחת ישירות ל־Prodigi (UK/EU)
+              כטיוטה לאישור; משלוח 7-14 ימי עסקים לישראל.
             </p>
           </div>
         </aside>
