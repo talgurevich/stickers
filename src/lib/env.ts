@@ -28,6 +28,8 @@ export const env = {
   payplusHmacSecret: () => required("PAYPLUS_HMAC_SECRET"),
 
   greenApi: () => ({
+    baseUrl: process.env.GREEN_API_BASE_URL ?? "https://api.green-api.com",
+    mediaUrl: process.env.GREEN_API_MEDIA_URL,
     instanceId: required("GREEN_API_INSTANCE_ID"),
     token: required("GREEN_API_TOKEN"),
     webhookSecret: optional("GREEN_API_WEBHOOK_SECRET"),
