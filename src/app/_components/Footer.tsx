@@ -55,6 +55,21 @@ export default function Footer() {
               errn.io
             </a>
           </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <a
+              href="/legal/terms"
+              className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              Terms of Service
+            </a>
+            <span aria-hidden>·</span>
+            <a
+              href="/legal/privacy"
+              className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              Privacy Policy
+            </a>
+          </div>
           <div className="text-[10px] text-zinc-400 dark:text-zinc-600">
             תמונת רקע:{" "}
             <a
