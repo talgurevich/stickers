@@ -21,20 +21,26 @@ async function request<T>(
   path: string,
   init?: RequestInit & { query?: Record<string, string | number | undefined> },
 ): Promise<T> {
-  const { token } = env.printfulOutbound();
+  const { token, storeId } = env.printfulOutbound();
   const url = new URL(BASE + path);
   if (init?.query) {
     for (const [k, v] of Object.entries(init.query)) {
       if (v !== undefined) url.searchParams.set(k, String(v));
     }
   }
+  // Account-level Private Tokens that own multiple stores must specify
+  // X-PF-Store-Id on store-scoped endpoints (orders, products, …).
+  // Catalog endpoints work without it.
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (storeId) headers["X-PF-Store-Id"] = storeId;
+
   const res = await fetch(url, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: "no-store",
   });
   const text = await res.text();

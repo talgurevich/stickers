@@ -38,6 +38,7 @@ export const env = {
   // Outbound — needed to call Printful.
   printfulOutbound: () => ({
     token: required("PRINTFUL_PRIVATE_TOKEN"),
+    storeId: optional("PRINTFUL_STORE_ID"),
   }),
 
   // Inbound — needed only when verifying incoming Printful webhooks.
