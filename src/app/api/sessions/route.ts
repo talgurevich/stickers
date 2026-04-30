@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSession } from "@/lib/sessions";
+import { sweepOrphansForSession } from "@/lib/whatsapp-ingest";
 
 export const runtime = "nodejs";
 
@@ -25,10 +26,17 @@ export async function POST(req: Request) {
   }
   try {
     const session = await createSession(phone);
+    // Adopt any recent unmatched orphan for this phone — covers the case
+    // where the user sent a WA sticker first, then opened the web flow.
+    const adopted = await sweepOrphansForSession({
+      sessionId: session.id,
+      phoneE164: phone,
+    });
     return NextResponse.json({
       id: session.id,
       phone: session.phoneE164,
-      status: session.status,
+      status: adopted ? "image_received" : session.status,
+      orphanAdopted: adopted,
     });
   } catch (e) {
     return NextResponse.json(
