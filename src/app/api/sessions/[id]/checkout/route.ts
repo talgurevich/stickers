@@ -6,6 +6,8 @@ import { env } from "@/lib/env";
 import { serverClient } from "@/lib/supabase";
 import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
 import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
+import { sendOrderConfirmation } from "@/lib/email";
+import { STORAGE_BUCKET } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -95,11 +97,35 @@ export async function POST(
   if (process.env.PAYMENTS_ENABLED !== "true") {
     await markOrderPaid(order.id, "test-mode");
     const submission = await submitOrderForPrinting(order.id);
+
+    // Best-effort confirmation email. Skips silently if RESEND_API_KEY isn't
+    // set yet or the customer didn't enter an email.
+    let imageUrl: string | null = null;
+    if (session.imagePath) {
+      const { data } = await sb.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(session.imagePath, 7 * 24 * 60 * 60);
+      imageUrl = data?.signedUrl ?? null;
+    }
+    const emailResult = address.email
+      ? await sendOrderConfirmation({
+          to: address.email,
+          orderId: order.id,
+          size,
+          quantity,
+          totalAgorot: price.totalAgorot,
+          imageUrl,
+          shippingName: address.name,
+          shippingCity: address.city,
+        })
+      : { kind: "skipped", reason: "no-email" as const };
+
     return NextResponse.json({
       mode: "test",
       orderId: order.id,
       redirectUrl: `${appUrl}/order/${order.id}`,
       submission,
+      email: emailResult,
       breakdown: price,
     });
   }

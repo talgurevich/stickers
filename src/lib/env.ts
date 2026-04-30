@@ -52,6 +52,7 @@ export const env = {
   }),
 
   resendApiKey: () => required("RESEND_API_KEY"),
+  resendConfigured: () => Boolean(process.env.RESEND_API_KEY),
 
   supabase: () => ({
     url: required("NEXT_PUBLIC_SUPABASE_URL"),
