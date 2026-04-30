@@ -28,8 +28,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad-json" }, { status: 400 });
   }
 
+  const typeWebhook = (body as { typeWebhook?: string })?.typeWebhook;
+  console.log("[whatsapp inbound:received]", { typeWebhook });
+
   const msg = greenApi.parseWebhook(body);
   if (!msg) {
+    console.log("[whatsapp inbound:ignored]", {
+      typeWebhook,
+      bodySample: JSON.stringify(body).slice(0, 600),
+    });
     return NextResponse.json({ ok: true, ignored: true });
   }
 
