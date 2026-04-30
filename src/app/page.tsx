@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import RecentFeed from "./_components/RecentFeed";
 
 const HERO_IMAGE_URL =
@@ -53,12 +54,21 @@ export default function Home() {
       <div className="absolute inset-0 bg-zinc-950/55" aria-hidden />
 
       <div className="relative z-10 w-full max-w-xl space-y-8 text-center">
+        <Image
+          src="/logo.png"
+          alt="Wallaura"
+          width={529}
+          height={172}
+          priority
+          className="mx-auto h-auto w-56 drop-shadow-2xl sm:w-72"
+        />
+
         <span className="inline-flex items-center rounded-full border border-white/40 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
           MVP · בבנייה
         </span>
 
         <div className="space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-lg sm:text-5xl">
+          <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-lg sm:text-4xl">
             המדבקות מהוואטסאפ שלך,{" "}
             <span className="text-emerald-300">מודפסות אצלך בבית</span>
           </h1>
