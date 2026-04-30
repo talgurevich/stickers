@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { serverClient } from "@/lib/supabase";
 import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
 import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
-import { sendOrderConfirmation } from "@/lib/email";
+import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
 import { STORAGE_BUCKET } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -120,12 +120,37 @@ export async function POST(
         })
       : { kind: "skipped", reason: "no-email" as const };
 
+    // Always notify the owner so we can review test orders before approving
+    // them in the Prodigi dashboard.
+    const ownerEmailResult = await sendOwnerOrderNotification({
+      orderId: order.id,
+      size,
+      quantity,
+      totalAgorot: price.totalAgorot,
+      customerPhone: session.phoneE164,
+      customerEmail: address.email ?? null,
+      imageUrl,
+      shippingName: address.name,
+      shippingStreet: address.street,
+      shippingCity: address.city,
+      shippingZip: address.zip,
+      fulfillmentId:
+        submission.kind === "submitted" || submission.kind === "already-submitted"
+          ? submission.fulfillmentOrderId
+          : null,
+      fulfillmentStatus:
+        submission.kind === "error"
+          ? `error: ${submission.message}`
+          : submission.kind,
+    });
+
     return NextResponse.json({
       mode: "test",
       orderId: order.id,
       redirectUrl: `${appUrl}/order/${order.id}`,
       submission,
       email: emailResult,
+      ownerEmail: ownerEmailResult,
       breakdown: price,
     });
   }

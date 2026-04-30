@@ -3,12 +3,21 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserClient } from "@/lib/supabase-browser";
+import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
 
 type SessionView = {
   id: string;
   phone: string;
   status: string;
   imageUrl?: string | null;
+};
+
+type PastOrder = {
+  id: string;
+  size: string;
+  quantity: number;
+  thumbUrl: string | null;
+  createdAt: string;
 };
 
 export default function StartPage({
@@ -19,22 +28,77 @@ export default function StartPage({
   const { id } = use(params);
   const router = useRouter();
   const [session, setSession] = useState<SessionView | null>(null);
+  const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
+  const [reordering, setReordering] = useState<string | null>(null);
 
   // Initial fetch — covers the case where the orphan sweep at session
-  // create already attached an image, so we redirect immediately.
+  // create already attached an image, so we redirect immediately. Also
+  // pulls past orders for this phone so a returning user sees their
+  // previous stickers.
   useEffect(() => {
     let alive = true;
     fetch(`/api/sessions/${id}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: SessionView | null) => {
+      .then(async (j: SessionView | null) => {
         if (!alive || !j) return;
         setSession(j);
-        if (j.imageUrl) router.push(`/configure/${id}`);
+        if (j.imageUrl) {
+          router.push(`/configure/${id}`);
+          return;
+        }
+        // Fetch past orders for this phone in parallel.
+        try {
+          const res = await fetch("/api/account/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: j.phone }),
+          });
+          if (res.ok) {
+            const acc = await res.json();
+            if (alive) {
+              setPastOrders(
+                (acc.orders ?? []).map(
+                  (o: {
+                    id: string;
+                    size: string;
+                    quantity: number;
+                    thumbUrl: string | null;
+                    createdAt: string;
+                  }) => ({
+                    id: o.id,
+                    size: o.size,
+                    quantity: o.quantity,
+                    thumbUrl: o.thumbUrl,
+                    createdAt: o.createdAt,
+                  }),
+                ),
+              );
+            }
+          }
+        } catch {
+          /* non-fatal */
+        }
       });
     return () => {
       alive = false;
     };
   }, [id, router]);
+
+  async function reorder(orderId: string) {
+    if (!session) return;
+    setReordering(orderId);
+    try {
+      const res = await fetch("/api/account/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, phone: session.phone }),
+      });
+      const j = await res.json();
+      if (res.ok) router.push(`/configure/${j.sessionId}`);
+    } finally {
+      setReordering(null);
+    }
+  }
 
   // Realtime subscription — when the WhatsApp ingest writes image_url,
   // we move on without polling.
@@ -111,6 +175,48 @@ export default function StartPage({
         <p className="text-xs text-zinc-500">
           טלפון שאיתו פתחת את ההזמנה: <span dir="ltr">+{session?.phone}</span>
         </p>
+
+        {pastOrders.length > 0 && (
+          <div className="space-y-3 border-t border-zinc-200 pt-8 text-right dark:border-zinc-800">
+            <h2 className="text-base font-semibold">
+              או בחרו מדבקה שכבר הזמנתם
+            </h2>
+            <p className="text-xs text-zinc-500">
+              מצאנו {pastOrders.length} הזמנות קודמות מהטלפון הזה. הקליקו על
+              אחת כדי להזמין שוב.
+            </p>
+            <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              {pastOrders.map((o) => {
+                const variant = isStickerSize(o.size)
+                  ? STICKER_VARIANTS[o.size]
+                  : null;
+                return (
+                  <li key={o.id}>
+                    <button
+                      onClick={() => reorder(o.id)}
+                      disabled={reordering !== null}
+                      className="group flex w-full flex-col items-center gap-1 rounded-lg border border-zinc-200 bg-white p-2 transition hover:border-emerald-500 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                      {o.thumbUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={o.thumbUrl}
+                          alt=""
+                          className="aspect-square w-full rounded object-cover"
+                        />
+                      ) : (
+                        <div className="aspect-square w-full rounded bg-zinc-100 dark:bg-zinc-800" />
+                      )}
+                      <span className="truncate text-[10px] text-zinc-500">
+                        {variant?.labelHe.split(" · ")[0] ?? o.size}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );

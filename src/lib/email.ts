@@ -136,6 +136,83 @@ export async function sendOrderConfirmation(
   return send({ to: o.to, subject: "ההזמנה שלך מ-Wallaura התקבלה", html });
 }
 
+// --- Owner notifications (sent to OWNER_EMAIL on every new order) ---
+
+export type OwnerOrderInput = {
+  orderId: string;
+  size: string;
+  quantity: number;
+  totalAgorot: number;
+  customerPhone: string;
+  customerEmail: string | null;
+  imageUrl?: string | null;
+  shippingName?: string;
+  shippingStreet?: string;
+  shippingCity?: string;
+  shippingZip?: string;
+  fulfillmentId?: string | null;
+  fulfillmentStatus?: string | null;
+};
+
+export async function sendOwnerOrderNotification(
+  o: OwnerOrderInput,
+): Promise<SendResult> {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (!ownerEmail) return { kind: "skipped", reason: "no-owner-email" };
+  const variant = isStickerSize(o.size) ? STICKER_VARIANTS[o.size] : null;
+  const sizeLabel = variant ? variant.labelEn : o.size;
+  const html = `<!doctype html>
+<html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b;background:#fafaf9;">
+  <div style="max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="margin:0 0 12px;">New order · ${sizeLabel} × ${o.quantity}</h2>
+    <p style="font-size:14px;color:#3f3f46;margin:0 0 16px;">${formatIls(o.totalAgorot)} · order <code>${o.orderId}</code></p>
+    ${o.imageUrl ? `<div style="margin:16px 0;"><img src="${o.imageUrl}" alt="" style="max-width:240px;border-radius:8px;border:1px solid #e4e4e7;"></div>` : ""}
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr><td style="padding:4px 0;color:#71717a;">Customer phone</td><td style="padding:4px 0;font-family:monospace;">+${o.customerPhone}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Customer email</td><td style="padding:4px 0;">${o.customerEmail ?? "—"}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Shipping</td><td style="padding:4px 0;">${o.shippingName ?? ""} · ${o.shippingStreet ?? ""}, ${o.shippingCity ?? ""} ${o.shippingZip ?? ""}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717a;">Fulfillment</td><td style="padding:4px 0;font-family:monospace;font-size:11px;">${o.fulfillmentId ?? "—"} · ${o.fulfillmentStatus ?? "—"}</td></tr>
+    </table>
+  </div></body></html>`;
+  return send({
+    to: ownerEmail,
+    subject: `[Wallaura] New order · ${sizeLabel} × ${o.quantity} · ${formatIls(o.totalAgorot)}`,
+    html,
+  });
+}
+
+// --- Feedback (form on the site footer) ---
+
+export type FeedbackInput = {
+  message: string;
+  fromName?: string;
+  fromEmail?: string;
+};
+
+export async function sendFeedbackToOwner(
+  f: FeedbackInput,
+): Promise<SendResult> {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (!ownerEmail) return { kind: "skipped", reason: "no-owner-email" };
+  const html = `<!doctype html>
+<html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b;">
+  <div style="max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="margin:0 0 12px;">Feedback from wallaura.art</h2>
+    <p style="font-size:13px;color:#3f3f46;margin:0 0 16px;">
+      From: ${f.fromName ?? "(anonymous)"}${f.fromEmail ? ` &lt;${f.fromEmail}&gt;` : ""}
+    </p>
+    <pre style="background:#fafaf9;border:1px solid #e4e4e7;border-radius:8px;padding:16px;font-family:inherit;white-space:pre-wrap;font-size:14px;line-height:1.5;">${f.message
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")}</pre>
+  </div></body></html>`;
+  return send({
+    to: ownerEmail,
+    subject: `[Wallaura feedback] ${f.message.slice(0, 60).replace(/\s+/g, " ")}`,
+    html,
+  });
+}
+
 export type ShippedEmailInput = {
   to: string;
   orderId: string;
