@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import { getBrowserClient } from "@/lib/supabase-browser";
 
 type SessionView = {
   id: string;
   phone: string;
   status: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
 };
 
 export default function StartPage({
@@ -22,28 +23,47 @@ export default function StartPage({
   const [err, setErr] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Poll for image arrival (until Supabase realtime is wired).
+  // 1) Initial fetch — covers the case where the orphan sweep at session
+  //    create already attached an image, so the user lands here with state
+  //    ready to advance immediately.
   useEffect(() => {
     let alive = true;
-    async function tick() {
-      try {
-        const res = await fetch(`/api/sessions/${id}`, { cache: "no-store" });
-        if (!res.ok) return;
-        const j = (await res.json()) as SessionView;
-        if (!alive) return;
+    fetch(`/api/sessions/${id}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: SessionView | null) => {
+        if (!alive || !j) return;
         setSession(j);
-        if (j.imageUrl) {
-          router.push(`/configure/${id}`);
-        }
-      } catch {
-        // swallow — we'll try again
-      }
-    }
-    tick();
-    const t = setInterval(tick, 3000);
+        if (j.imageUrl) router.push(`/configure/${id}`);
+      });
     return () => {
       alive = false;
-      clearInterval(t);
+    };
+  }, [id, router]);
+
+  // 2) Realtime subscription — when WhatsApp ingest writes the image_url,
+  //    we move on without polling.
+  useEffect(() => {
+    const supabase = getBrowserClient();
+    const channel = supabase
+      .channel(`session:${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sessions",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const next = payload.new as { image_url?: string | null };
+          if (next?.image_url) {
+            router.push(`/configure/${id}`);
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [id, router]);
 
@@ -97,12 +117,13 @@ export default function StartPage({
             />
           </button>
 
-          {/* WhatsApp — disabled until service number is configured */}
-          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50 p-6 text-center opacity-60 dark:border-zinc-800 dark:bg-zinc-950">
+          {/* WhatsApp */}
+          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-300 bg-white p-6 text-center dark:border-zinc-700 dark:bg-zinc-900">
             <div className="text-4xl">📱</div>
             <div className="font-semibold">שליחה בוואטסאפ</div>
             <div className="text-xs text-zinc-500">
-              בקרוב — ממתין להגדרת מספר השירות
+              שלחו את הסטיקר ממספר הטלפון שאיתו פתחתם את ההזמנה. ברגע שזה
+              יגיע, נמשיך אוטומטית.
             </div>
           </div>
         </div>
