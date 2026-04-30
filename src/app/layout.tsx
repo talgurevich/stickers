@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import "./globals.css";
+import Header from "./_components/Header";
 import Footer from "./_components/Footer";
 
 const heebo = Heebo({
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <Header />
         {children}
         <Footer />
       </body>
