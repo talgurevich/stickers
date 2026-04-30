@@ -113,7 +113,9 @@ export async function submitOrderToPrintful(
 
   try {
     const r = await printfulCreateOrder({
-      external_id: order.id,
+      // Printful caps external_id at 32 chars; UUIDs with dashes are 36.
+      // Strip dashes — still unique, deterministic, reversible.
+      external_id: order.id.replace(/-/g, ""),
       recipient: {
         name: a.name,
         address1: a.street,
