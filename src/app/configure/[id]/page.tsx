@@ -198,15 +198,11 @@ export default function ConfigurePage({
               >
                 +
               </button>
-              {quantity >= 10 ? (
+              {price && (
                 <span className="text-xs font-medium text-emerald-600">
-                  20% הנחת כמות
+                  {formatIls(price.perUnitAgorot)} ליחידה
                 </span>
-              ) : quantity >= 5 ? (
-                <span className="text-xs font-medium text-emerald-600">
-                  10% הנחת כמות
-                </span>
-              ) : null}
+              )}
             </div>
           </div>
 
