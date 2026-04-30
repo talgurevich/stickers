@@ -33,10 +33,13 @@ export const env = {
     webhookSecret: optional("GREEN_API_WEBHOOK_SECRET"),
   }),
 
-  printful: () => ({
+  // Outbound — needed to call Printful.
+  printfulOutbound: () => ({
     token: required("PRINTFUL_PRIVATE_TOKEN"),
-    webhookSecret: required("PRINTFUL_WEBHOOK_SECRET"),
   }),
+
+  // Inbound — needed only when verifying incoming Printful webhooks.
+  printfulWebhookSecret: () => required("PRINTFUL_WEBHOOK_SECRET"),
 
   resendApiKey: () => required("RESEND_API_KEY"),
 

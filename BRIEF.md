@@ -294,6 +294,10 @@ Each step produces a testable milestone. Don't move on until the current one wor
 - Upscaling strategy: skip / clipdrop / Real-ESRGAN dedicated
 - Brand voice for Hebrew WhatsApp messages: formal vs casual
 - Logo / visual identity timing
+- **Sticker matrix gap (Printful)**: Printful does not sell a 2″ (≈5 cm) kiss-cut sticker. Available sticker sizes per cut on Printful V2 (verified 2026-04-30):
+  - Kiss-Cut (product 358): 3″ / 4″ / 5.5″ (no 2″)
+  - Die-Cut (product 957): 2″ / 3″ / 4″ / 5″ / 6″
+  Options for the MVP: (a) keep 5/7/10 cm but disable the 5 cm × kiss-cut cell in the configurator, (b) align all three sizes to Kiss-Cut's offering and ship 7.5/10/14 cm, (c) ship die-cut only. See `src/lib/printful-catalog.ts` for current matrix.
 
 ## What this brief is, and isn't
 
