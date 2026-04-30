@@ -62,10 +62,6 @@ export default function ConfigurePage({
           return;
         }
         setSession(j);
-        if (j.config?.sizeMm) setSizeMm(j.config.sizeMm);
-        if (j.config?.cut) setCut(j.config.cut);
-        if (j.config?.quantity) setQuantity(j.config.quantity);
-        if (j.config?.address) setAddress(j.config.address);
       });
   }, [id, router]);
 
@@ -84,19 +80,11 @@ export default function ConfigurePage({
     setBusy(true);
     setErr(null);
     try {
-      // 1) Save current config
-      const patch = await fetch(`/api/sessions/${id}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/sessions/${id}/checkout`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sizeMm, cut, quantity, address }),
       });
-      if (!patch.ok) {
-        const j = await patch.json();
-        setErr(j.error ?? "שגיאה בשמירת ההזמנה");
-        return;
-      }
-      // 2) Create PayPlus link
-      const res = await fetch(`/api/sessions/${id}/checkout`, { method: "POST" });
       const j = await res.json();
       if (!res.ok) {
         setErr(j.error ?? "שגיאה בפתיחת התשלום");

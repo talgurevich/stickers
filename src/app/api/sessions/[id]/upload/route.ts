@@ -4,7 +4,7 @@ import { attachImage, getSession } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_BYTES = 8 * 1024 * 1024;
 const ACCEPT = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 export async function POST(
@@ -12,7 +12,7 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
-  const session = getSession(id);
+  const session = await getSession(id);
   if (!session) {
     return NextResponse.json({ error: "session-not-found" }, { status: 404 });
   }
@@ -35,7 +35,6 @@ export async function POST(
   const input = Buffer.from(await file.arrayBuffer());
 
   // Animated webp/gif → frame 0 PNG (per BRIEF.md "Animated WhatsApp stickers").
-  // Always normalize to PNG so downstream Printful upload is uniform.
   let processed: Buffer;
   try {
     processed = await sharp(input, { animated: false }).png().toBuffer();
@@ -46,9 +45,16 @@ export async function POST(
     );
   }
 
-  const result = attachImage(id, processed, "image/png");
-  if (!result) {
-    return NextResponse.json({ error: "session-not-found" }, { status: 404 });
+  try {
+    const updated = await attachImage(id, processed, "image/png");
+    if (!updated) {
+      return NextResponse.json({ error: "session-not-found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, imageUrl: updated.imageUrl });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 502 },
+    );
   }
-  return NextResponse.json({ ok: true, imageUrl: result.url });
 }

@@ -1,12 +1,18 @@
-// Session store — abstracts persistence behind a stable interface so we can
-// swap the in-memory Map for Supabase the moment it lands.
+// Session store backed by Supabase.
 //
-// Mirrors the `sessions` row shape from BRIEF.md / supabase/migrations/0001_init.sql.
-// Adds a `config` block for in-progress configurator state (kept here rather
-// than a separate row to keep the swap simple).
+// `image_url` in the DB stores the bucket-relative path (e.g. "<id>/sticker.png").
+// On read, we mint a fresh signed URL for the client — bucket is private and
+// signed URLs expire, so storing a permanent URL is wrong. The client-facing
+// Session shape exposes `imageUrl` as the signed URL.
+//
+// Configurator state (size / cut / quantity / address) is intentionally NOT
+// persisted on `sessions` — per the brief, sessions track image acquisition
+// only; configurator state lives on the client and gets serialized into an
+// `orders` row at checkout time.
 
-import { randomUUID } from "node:crypto";
-import type { CutType, SizeMm } from "./printful-catalog";
+import { serverClient, STORAGE_BUCKET } from "./supabase";
+
+const SIGNED_URL_TTL_SEC = 60 * 60;
 
 export type SessionStatus =
   | "awaiting_image"
@@ -16,98 +22,101 @@ export type SessionStatus =
   | "abandoned"
   | "expired";
 
-export type ShippingAddress = {
-  name: string;
-  street: string;
-  city: string;
-  zip: string;
-  country: string; // ISO-3166 alpha-2 — MVP is "IL" only
-  phone?: string;
-  email?: string;
-};
-
-export type SessionConfig = {
-  sizeMm?: SizeMm;
-  cut?: CutType;
-  quantity?: number;
-  address?: ShippingAddress;
-};
-
 export type Session = {
   id: string;
   phoneE164: string;
   status: SessionStatus;
-  imageUrl?: string;
-  /** Mime type of the processed image, e.g. "image/png". */
-  imageMime?: string;
-  config: SessionConfig;
+  /** Signed URL ready for the browser; null when no image attached yet. */
+  imageUrl: string | null;
   createdAt: string;
   expiresAt: string;
 };
 
-const TTL_MIN = 60;
-const store = new Map<string, Session>();
-const imageBlobs = new Map<string, { mime: string; buffer: Buffer }>();
+type Row = {
+  id: string;
+  phone_e164: string;
+  status: SessionStatus;
+  image_url: string | null;
+  created_at: string;
+  expires_at: string;
+};
 
-function nowPlusMin(min: number): string {
-  return new Date(Date.now() + min * 60_000).toISOString();
-}
-
-export function createSession(phoneE164: string): Session {
-  const session: Session = {
-    id: randomUUID(),
-    phoneE164,
-    status: "awaiting_image",
-    config: {},
-    createdAt: new Date().toISOString(),
-    expiresAt: nowPlusMin(TTL_MIN),
-  };
-  store.set(session.id, session);
-  return session;
-}
-
-export function getSession(id: string): Session | null {
-  const s = store.get(id);
-  if (!s) return null;
-  if (new Date(s.expiresAt).getTime() < Date.now()) {
-    store.delete(id);
-    imageBlobs.delete(id);
-    return null;
+async function rowToSession(r: Row): Promise<Session> {
+  let signed: string | null = null;
+  if (r.image_url) {
+    const { data } = await serverClient()
+      .storage.from(STORAGE_BUCKET)
+      .createSignedUrl(r.image_url, SIGNED_URL_TTL_SEC);
+    signed = data?.signedUrl ?? null;
   }
-  return s;
+  return {
+    id: r.id,
+    phoneE164: r.phone_e164,
+    status: r.status,
+    imageUrl: signed,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at,
+  };
 }
 
-export function updateSession(
+export async function createSession(phoneE164: string): Promise<Session> {
+  const { data, error } = await serverClient()
+    .from("sessions")
+    .insert({ phone_e164: phoneE164 })
+    .select()
+    .single();
+  if (error || !data) {
+    throw new Error(`createSession failed: ${error?.message ?? "no row"}`);
+  }
+  return rowToSession(data as Row);
+}
+
+export async function getSession(id: string): Promise<Session | null> {
+  const { data, error } = await serverClient()
+    .from("sessions")
+    .select()
+    .eq("id", id)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToSession(data as Row);
+}
+
+export async function updateSessionStatus(
   id: string,
-  patch: Partial<Pick<Session, "status" | "imageUrl" | "imageMime">> & {
-    config?: Partial<SessionConfig>;
-  },
-): Session | null {
-  const s = store.get(id);
-  if (!s) return null;
-  if (patch.status !== undefined) s.status = patch.status;
-  if (patch.imageUrl !== undefined) s.imageUrl = patch.imageUrl;
-  if (patch.imageMime !== undefined) s.imageMime = patch.imageMime;
-  if (patch.config) s.config = { ...s.config, ...patch.config };
-  return s;
+  status: SessionStatus,
+): Promise<Session | null> {
+  const { data, error } = await serverClient()
+    .from("sessions")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error || !data) return null;
+  return rowToSession(data as Row);
 }
 
-/** Stores a processed image buffer for a session. Returns the URL we expose. */
-export function attachImage(
+/** Uploads buffer to the stickers bucket and saves the path on the session. */
+export async function attachImage(
   id: string,
   buffer: Buffer,
   mime: string,
-): { url: string } | null {
-  const s = store.get(id);
-  if (!s) return null;
-  imageBlobs.set(id, { mime, buffer });
-  const url = `/api/sessions/${id}/image`;
-  s.imageUrl = url;
-  s.imageMime = mime;
-  s.status = "image_received";
-  return { url };
-}
+): Promise<Session | null> {
+  const ext = mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : "bin";
+  const path = `${id}/sticker.${ext}`;
+  const sb = serverClient();
+  const up = await sb.storage.from(STORAGE_BUCKET).upload(path, buffer, {
+    contentType: mime,
+    upsert: true,
+  });
+  if (up.error) throw new Error(`upload failed: ${up.error.message}`);
 
-export function readImage(id: string): { mime: string; buffer: Buffer } | null {
-  return imageBlobs.get(id) ?? null;
+  const { data, error } = await sb
+    .from("sessions")
+    .update({ image_url: path, status: "image_received" })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error || !data) return null;
+  return rowToSession(data as Row);
 }
