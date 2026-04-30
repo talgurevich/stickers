@@ -45,6 +45,8 @@ export type OrderRow = {
   paid_at: string | null;
   printful_order_id: string | null; // re-purposed: holds Prodigi order id (ord_…)
   printful_status: string | null;
+  shipped_at: string | null;
+  tracking_url: string | null;
 };
 
 export async function getOrder(id: string): Promise<OrderRow | null> {
@@ -89,6 +91,66 @@ export type SubmitResult =
   | { kind: "already-submitted"; fulfillmentOrderId: string }
   | { kind: "no-variant"; size: string }
   | { kind: "error"; message: string };
+
+// --- Shipped flow ---
+
+export type ShippedResult =
+  | { kind: "marked"; orderId: string; trackingUrl: string | null; alreadyShipped: boolean }
+  | { kind: "order-not-found" }
+  | { kind: "no-shipments" };
+
+/**
+ * Given a Prodigi order id, mark our order shipped (idempotently). Returns
+ * info the caller can use to dispatch the shipped email.
+ *
+ * Caller responsibility: send the email — keeping email side-effects out of
+ * this function so we can call it from the webhook AND the admin simulator
+ * with the same semantics.
+ */
+export async function markOrderShipped(args: {
+  prodigiOrderId: string;
+  trackingUrl: string | null;
+}): Promise<ShippedResult & { order?: OrderRow }> {
+  const sb = serverClient();
+  const { data: order } = await sb
+    .from("orders")
+    .select()
+    .eq("printful_order_id", args.prodigiOrderId)
+    .maybeSingle();
+  if (!order) return { kind: "order-not-found" };
+  const row = order as OrderRow;
+
+  const alreadyShipped = Boolean(row.shipped_at);
+  if (alreadyShipped) {
+    return {
+      kind: "marked",
+      orderId: row.id,
+      trackingUrl: row.tracking_url,
+      alreadyShipped: true,
+      order: row,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const { data: updated } = await sb
+    .from("orders")
+    .update({
+      shipped_at: now,
+      tracking_url: args.trackingUrl,
+      printful_status: "Shipped",
+    })
+    .eq("id", row.id)
+    .select()
+    .single();
+
+  return {
+    kind: "marked",
+    orderId: row.id,
+    trackingUrl: args.trackingUrl,
+    alreadyShipped: false,
+    order: (updated as OrderRow) ?? row,
+  };
+}
 
 export async function submitOrderForPrinting(
   orderId: string,

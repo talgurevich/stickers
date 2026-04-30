@@ -43,16 +43,38 @@ export default function Footer() {
   return (
     <footer className="mt-auto border-t border-zinc-200 bg-white/60 px-6 py-6 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/40">
       <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="text-xs">
-          נבנה על פטריות ב־
-          <a
-            href="https://errn.io"
-            target="_blank"
-            rel="noopener"
-            className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
-          >
-            errn.io
-          </a>
+        <div className="space-y-1 text-xs">
+          <div>
+            נבנה על פטריות ב־
+            <a
+              href="https://errn.io"
+              target="_blank"
+              rel="noopener"
+              className="underline hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              errn.io
+            </a>
+          </div>
+          <div className="text-[10px] text-zinc-400 dark:text-zinc-600">
+            תמונת רקע:{" "}
+            <a
+              href="https://unsplash.com/@darya_tryfanava"
+              target="_blank"
+              rel="noopener"
+              className="underline hover:text-zinc-600"
+            >
+              Darya Tryfanava
+            </a>{" "}
+            ב־
+            <a
+              href="https://unsplash.com/photos/9Z_VwmBVYNY"
+              target="_blank"
+              rel="noopener"
+              className="underline hover:text-zinc-600"
+            >
+              Unsplash
+            </a>
+          </div>
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
