@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
 import { formatIls } from "@/lib/pricing";
 import { getBrowserClient } from "@/lib/supabase-browser";
+
+// Persist the phone client-side so navigating away from /account (e.g. to
+// /cart and back) doesn't dump the user back at the login form. The phone
+// itself isn't sensitive — it's the id we use everywhere — but offer a
+// logout button so people on shared devices can wipe it.
+const ACCOUNT_PHONE_KEY = "wallaura.account.phone.v1";
 
 type OrderView = {
   id: string;
@@ -61,52 +67,102 @@ export default function AccountPage() {
     };
   }, [openSession, router]);
 
+  const performLogin = useCallback(
+    async (phoneToUse: string) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        const [sessionRes, ordersRes] = await Promise.all([
+          fetch("/api/sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: phoneToUse }),
+          }),
+          fetch("/api/account/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: phoneToUse }),
+          }),
+        ]);
+
+        if (!sessionRes.ok) {
+          const j = await sessionRes.json();
+          setErr(j.error ?? `שגיאה ${sessionRes.status}`);
+          return;
+        }
+        if (!ordersRes.ok) {
+          const j = await ordersRes.json();
+          setErr(j.error ?? `שגיאה ${ordersRes.status}`);
+          return;
+        }
+        const sessionJson = await sessionRes.json();
+        const ordersJson = await ordersRes.json();
+
+        // Persist for next visit. Stored phone is whatever the user typed
+        // — server normalizes again on POST so format doesn't matter here.
+        try {
+          window.localStorage.setItem(ACCOUNT_PHONE_KEY, phoneToUse);
+        } catch {
+          /* no-op (private mode etc.) */
+        }
+
+        // If the orphan sweep just attached an image, jump straight to /configure.
+        if (sessionJson.orphanAdopted) {
+          router.push(`/configure/${sessionJson.id}`);
+          return;
+        }
+
+        setOpenSession({ id: sessionJson.id, phone: sessionJson.phone });
+        setOrders(ordersJson.orders);
+        setPhoneSubmitted(true);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [router],
+  );
+
   async function logIn(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      // Open a session for this phone (also runs orphan sweep on the server)
-      // and pull past orders in parallel.
-      const [sessionRes, ordersRes] = await Promise.all([
-        fetch("/api/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
-        }),
-        fetch("/api/account/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
-        }),
-      ]);
-
-      if (!sessionRes.ok) {
-        const j = await sessionRes.json();
-        setErr(j.error ?? `שגיאה ${sessionRes.status}`);
-        return;
-      }
-      if (!ordersRes.ok) {
-        const j = await ordersRes.json();
-        setErr(j.error ?? `שגיאה ${ordersRes.status}`);
-        return;
-      }
-      const sessionJson = await sessionRes.json();
-      const ordersJson = await ordersRes.json();
-
-      // If the orphan sweep just attached an image, jump straight to /configure.
-      if (sessionJson.orphanAdopted) {
-        router.push(`/configure/${sessionJson.id}`);
-        return;
-      }
-
-      setOpenSession({ id: sessionJson.id, phone: sessionJson.phone });
-      setOrders(ordersJson.orders);
-      setPhoneSubmitted(true);
-    } finally {
-      setBusy(false);
-    }
+    await performLogin(phone);
   }
+
+  function logOut() {
+    try {
+      window.localStorage.removeItem(ACCOUNT_PHONE_KEY);
+    } catch {
+      /* no-op */
+    }
+    setPhone("");
+    setPhoneSubmitted(false);
+    setOpenSession(null);
+    setOrders(null);
+  }
+
+  // On mount, if a phone is stored, auto-log-in. This keeps the user "in"
+  // their account across navigations (e.g. /account → /cart → /account).
+  useEffect(() => {
+    let alive = true;
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(ACCOUNT_PHONE_KEY);
+    } catch {
+      /* no-op */
+    }
+    if (!stored) return;
+    // Syncing React state with localStorage on mount — the rule's preferred
+    // alternatives (move to render, use useSyncExternalStore) don't fit a
+    // one-shot async restore.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPhone(stored);
+    performLogin(stored).catch(() => {
+      // If auto-restore fails (e.g. server rejects), fall back to the form.
+      if (alive) logOut();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [performLogin]);
 
   async function reorder(orderId: string) {
     setBusy(true);
@@ -138,7 +194,17 @@ export default function AccountPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-12">
-      <h1 className="mb-8 text-3xl font-bold">החשבון שלי</h1>
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-3xl font-bold">החשבון שלי</h1>
+        {phoneSubmitted && (
+          <button
+            onClick={logOut}
+            className="text-xs text-zinc-500 underline hover:text-zinc-900 dark:hover:text-white"
+          >
+            יציאה
+          </button>
+        )}
+      </div>
 
       {!phoneSubmitted && (
         <form onSubmit={logIn} className="space-y-4 max-w-sm">
