@@ -15,5 +15,6 @@ export async function GET(
     phone: s.phoneE164,
     status: s.status,
     imageUrl: s.imageUrl,
+    imagePath: s.imagePath,
   });
 }

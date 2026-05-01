@@ -20,6 +20,7 @@ const PRINT_URL_TTL_SEC = 7 * 24 * 60 * 60; // 7 days — covers Prodigi pulling
 export type OrderRow = {
   id: string;
   session_id: string | null;
+  cart_id: string | null;
   phone_e164: string;
   email: string | null;
   image_url: string;
@@ -150,6 +151,111 @@ export async function markOrderShipped(args: {
     alreadyShipped: false,
     order: (updated as OrderRow) ?? row,
   };
+}
+
+// --- Cart (multi-item) helpers ---
+
+export async function getCartOrders(cartId: string): Promise<OrderRow[]> {
+  const { data } = await serverClient()
+    .from("orders")
+    .select()
+    .eq("cart_id", cartId)
+    .order("created_at", { ascending: true });
+  return (data as OrderRow[]) ?? [];
+}
+
+export async function markCartPaid(
+  cartId: string,
+  payplusTransactionId: string | null,
+): Promise<OrderRow[]> {
+  const { data } = await serverClient()
+    .from("orders")
+    .update({
+      payplus_transaction_id: payplusTransactionId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("cart_id", cartId)
+    .select();
+  return (data as OrderRow[]) ?? [];
+}
+
+/**
+ * Submit all orders in a cart as a single Prodigi order with multiple items.
+ * Same Prodigi order id is stamped on every row so the webhook can find them
+ * all by `printful_order_id`. Idempotent — re-runs short-circuit if any row
+ * already has a fulfillment id.
+ */
+export async function submitCartForPrinting(
+  cartId: string,
+): Promise<SubmitResult> {
+  const rows = await getCartOrders(cartId);
+  if (rows.length === 0) return { kind: "error", message: "cart-empty" };
+
+  const existing = rows.find((r) => r.printful_order_id);
+  if (existing?.printful_order_id) {
+    return {
+      kind: "already-submitted",
+      fulfillmentOrderId: existing.printful_order_id,
+    };
+  }
+
+  const items = [];
+  for (const row of rows) {
+    if (!isStickerSize(row.size_mm)) {
+      return { kind: "no-variant", size: String(row.size_mm) };
+    }
+    const variant = STICKER_VARIANTS[row.size_mm];
+    const printFileUrl = await signPrintFile(row);
+    items.push({
+      sku: variant.sku,
+      copies: row.quantity,
+      sizing: "fillPrintArea" as const,
+      assets: [{ printArea: "default", url: printFileUrl }],
+    });
+  }
+
+  // Recipient comes from the first row — all rows in a cart share one
+  // shipping address by construction (see /api/checkout/cart).
+  const first = rows[0];
+  const a = first.shipping_address;
+
+  try {
+    const r = await prodigiCreateOrder({
+      merchantReference: cartId,
+      shippingMethod: "Budget",
+      recipient: {
+        name: a.name,
+        email: a.email ?? first.email ?? undefined,
+        phoneNumber: a.phone ?? `+${first.phone_e164}`,
+        address: {
+          line1: a.street,
+          townOrCity: a.city,
+          postalOrZipCode: a.zip,
+          countryCode: a.country,
+        },
+      },
+      items,
+    });
+
+    const fulfillmentOrderId = r.order.id;
+    await serverClient()
+      .from("orders")
+      .update({
+        printful_order_id: fulfillmentOrderId,
+        printful_status: r.order.status?.stage ?? "submitted",
+      })
+      .eq("cart_id", cartId);
+
+    return { kind: "submitted", fulfillmentOrderId };
+  } catch (e) {
+    if (e instanceof ProdigiError) {
+      return { kind: "error", message: e.message };
+    }
+    return {
+      kind: "error",
+      message: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
 
 export async function submitOrderForPrinting(

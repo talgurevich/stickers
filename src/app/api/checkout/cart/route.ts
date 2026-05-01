@@ -1,0 +1,253 @@
+// Cart-level checkout. Multiple sticker designs ship in a single parcel —
+// one Prodigi order, one PayPlus payment, one shipping fee. Each line item
+// gets its own `orders` row tied together by a shared `cart_id` so the
+// existing webhook + email plumbing can keep operating row-at-a-time.
+
+import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { getSession } from "@/lib/sessions";
+import { priceForCart } from "@/lib/pricing";
+import { generatePaymentLink, PayPlusError } from "@/lib/payplus";
+import { env } from "@/lib/env";
+import { serverClient, STORAGE_BUCKET } from "@/lib/supabase";
+import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
+import {
+  markCartPaid,
+  submitCartForPrinting,
+  getCartOrders,
+} from "@/lib/orders";
+import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
+
+export const runtime = "nodejs";
+
+type Address = {
+  name: string;
+  street: string;
+  city: string;
+  zip: string;
+  country: string;
+  phone?: string;
+  email?: string;
+};
+
+type CartItem = {
+  sessionId: string;
+  imagePath?: string; // optional client hint; we re-resolve from session
+  size: StickerSize;
+  quantity: number;
+};
+
+type CartCheckoutBody = {
+  items: CartItem[];
+  address: Address;
+  displayPublicly?: boolean;
+};
+
+export async function POST(req: Request) {
+  let body: CartCheckoutBody;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "bad-json" }, { status: 400 });
+  }
+
+  const { items, address } = body;
+  const displayPublicly = body.displayPublicly !== false;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ error: "cart-empty" }, { status: 400 });
+  }
+  if (!address?.name || !address.street || !address.city || !address.zip) {
+    return NextResponse.json({ error: "address-incomplete" }, { status: 400 });
+  }
+
+  // Validate items + resolve image paths from sessions. We trust the client's
+  // imagePath only as a fallback for sessions that have already expired —
+  // session.imagePath is the authoritative source when the session is alive.
+  type Resolved = {
+    sessionId: string | null;
+    phoneE164: string | null;
+    imagePath: string;
+    size: StickerSize;
+    quantity: number;
+  };
+  const resolved: Resolved[] = [];
+  for (const it of items) {
+    if (!isStickerSize(it.size)) {
+      return NextResponse.json(
+        { error: `invalid-size:${it.size}` },
+        { status: 400 },
+      );
+    }
+    if (!it.quantity || it.quantity < 1 || it.quantity > 50) {
+      return NextResponse.json(
+        { error: `invalid-quantity:${it.sessionId}` },
+        { status: 400 },
+      );
+    }
+    const session = it.sessionId ? await getSession(it.sessionId) : null;
+    const imagePath = session?.imagePath ?? it.imagePath ?? null;
+    if (!imagePath) {
+      return NextResponse.json(
+        { error: `image-missing:${it.sessionId}` },
+        { status: 400 },
+      );
+    }
+    resolved.push({
+      sessionId: session?.id ?? null,
+      phoneE164: session?.phoneE164 ?? null,
+      imagePath,
+      size: it.size,
+      quantity: it.quantity,
+    });
+  }
+
+  // Use the first session's phone as the cart's contact phone. (All sessions
+  // in a cart should belong to the same user — they're created from the same
+  // browser. We don't enforce this at the DB layer.)
+  const cartPhone =
+    resolved.find((r) => r.phoneE164)?.phoneE164 ?? "0000000000";
+
+  const price = priceForCart(
+    resolved.map((r) => ({ size: r.size, quantity: r.quantity })),
+  );
+
+  const cartId = randomUUID();
+  const sb = serverClient();
+
+  // Insert one orders row per line item. Shipping + handling are charged
+  // once for the whole cart, so we apply them entirely to the first row;
+  // remaining rows store 0 for both. Sum across rows = cart total — keeps
+  // the existing per-row total semantics intact.
+  const rowsToInsert = resolved.map((r, idx) => {
+    const lineProductAgorot = price.lines[idx].productAgorot;
+    const isFirst = idx === 0;
+    const lineShipping = isFirst ? price.shippingAgorot : 0;
+    const lineHandling = isFirst ? price.handlingAgorot : 0;
+    return {
+      cart_id: cartId,
+      session_id: r.sessionId,
+      phone_e164: r.phoneE164 ?? cartPhone,
+      email: address.email ?? null,
+      image_url: r.imagePath,
+      print_image_url: r.imagePath,
+      size_mm: r.size,
+      cut_type: "kiss_cut",
+      quantity: r.quantity,
+      shipping_address: address,
+      product_cost_agorot: lineProductAgorot,
+      shipping_cost_agorot: lineShipping,
+      total_agorot: lineProductAgorot + lineShipping + lineHandling,
+      display_publicly: displayPublicly,
+    };
+  });
+
+  const { data: insertedRows, error: insertErr } = await sb
+    .from("orders")
+    .insert(rowsToInsert)
+    .select();
+  if (insertErr || !insertedRows) {
+    return NextResponse.json(
+      { error: `db-insert-failed: ${insertErr?.message ?? "no rows"}` },
+      { status: 502 },
+    );
+  }
+
+  const appUrl = env.appUrl();
+
+  // --- Test mode: PayPlus disabled. Mark cart paid + submit single multi-
+  //     item Prodigi draft, redirect to the cart confirmation page.
+  if (process.env.PAYMENTS_ENABLED !== "true") {
+    await markCartPaid(cartId, "test-mode");
+    const submission = await submitCartForPrinting(cartId);
+
+    // Best-effort confirmation email — picks the first item's image as the
+    // visual and lists totals at the cart level. Skips silently if RESEND
+    // isn't configured or no email was given.
+    let firstImageUrl: string | null = null;
+    if (resolved[0]?.imagePath) {
+      const { data } = await sb.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(resolved[0].imagePath, 7 * 24 * 60 * 60);
+      firstImageUrl = data?.signedUrl ?? null;
+    }
+
+    const totalQuantity = resolved.reduce((n, r) => n + r.quantity, 0);
+    const customerEmailResult = address.email
+      ? await sendOrderConfirmation({
+          to: address.email,
+          orderId: cartId,
+          size: resolved.length === 1 ? resolved[0].size : "mixed",
+          quantity: totalQuantity,
+          totalAgorot: price.totalAgorot,
+          imageUrl: firstImageUrl,
+          shippingName: address.name,
+          shippingCity: address.city,
+        })
+      : { kind: "skipped", reason: "no-email" as const };
+
+    const ownerEmailResult = await sendOwnerOrderNotification({
+      orderId: cartId,
+      size: resolved.length === 1 ? resolved[0].size : `mixed (${resolved.length} items)`,
+      quantity: totalQuantity,
+      totalAgorot: price.totalAgorot,
+      customerPhone: cartPhone,
+      customerEmail: address.email ?? null,
+      imageUrl: firstImageUrl,
+      shippingName: address.name,
+      shippingStreet: address.street,
+      shippingCity: address.city,
+      shippingZip: address.zip,
+      fulfillmentId:
+        submission.kind === "submitted" || submission.kind === "already-submitted"
+          ? submission.fulfillmentOrderId
+          : null,
+      fulfillmentStatus:
+        submission.kind === "error"
+          ? `error: ${submission.message}`
+          : submission.kind,
+    });
+
+    return NextResponse.json({
+      mode: "test",
+      cartId,
+      orderIds: (await getCartOrders(cartId)).map((o) => o.id),
+      redirectUrl: `${appUrl}/cart/${cartId}`,
+      submission,
+      email: customerEmailResult,
+      ownerEmail: ownerEmailResult,
+      breakdown: price,
+    });
+  }
+
+  // --- Live mode: PayPlus single payment for the cart total.
+  try {
+    const result = await generatePaymentLink({
+      amount: price.totalAgorot / 100,
+      currencyCode: "ILS",
+      moreInfo: `cart:${cartId}`,
+      refUrlSuccess: `${appUrl}/payment/success?cart=${cartId}`,
+      refUrlFailure: `${appUrl}/payment/failure?cart=${cartId}`,
+      refUrlCallback: `${appUrl}/api/webhooks/payplus`,
+    });
+    return NextResponse.json({
+      mode: "live",
+      cartId,
+      redirectUrl: result.paymentPageLink,
+      paymentPageLink: result.paymentPageLink,
+      pageRequestUid: result.pageRequestUid,
+      breakdown: price,
+    });
+  } catch (e) {
+    if (e instanceof PayPlusError) {
+      return NextResponse.json(
+        { error: e.message, raw: e.raw, cartId },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e), cartId },
+      { status: 500 },
+    );
+  }
+}

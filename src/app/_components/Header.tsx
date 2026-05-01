@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import CartLink from "./CartLink";
 
 export default function Header() {
   const pathname = usePathname();
@@ -22,12 +23,15 @@ export default function Header() {
             className="h-7 w-auto sm:h-8"
           />
         </Link>
-        <Link
-          href="/account"
-          className="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
-        >
-          החשבון שלי
-        </Link>
+        <div className="flex items-center gap-4">
+          <CartLink />
+          <Link
+            href="/account"
+            className="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+          >
+            החשבון שלי
+          </Link>
+        </div>
       </div>
     </header>
   );

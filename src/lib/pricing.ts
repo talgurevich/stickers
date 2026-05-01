@@ -76,6 +76,68 @@ export function priceFor(
   return { productAgorot, shippingAgorot, totalAgorot, perUnitAgorot };
 }
 
+export type CartPriceItem = {
+  size: StickerSize;
+  quantity: number;
+};
+
+export type CartPriceLine = {
+  size: StickerSize;
+  quantity: number;
+  productAgorot: number;
+};
+
+export type CartPriceBreakdown = {
+  lines: CartPriceLine[];
+  productAgorot: number;
+  shippingAgorot: number;
+  handlingAgorot: number;
+  totalAgorot: number;
+};
+
+// One shipment regardless of how many designs — Prodigi packs everything
+// into a single parcel, so we charge shipping once. The largest item's
+// shipping rate dominates (the parcel grows with the biggest sticker), so
+// we use the max across items rather than summing per-item rates.
+export function priceForCart(items: CartPriceItem[]): CartPriceBreakdown {
+  if (items.length === 0) {
+    throw new Error("cart is empty");
+  }
+  const lines: CartPriceLine[] = [];
+  let productAgorot = 0;
+  let shippingUsdMax = 0;
+  for (const it of items) {
+    if (it.quantity < 1 || it.quantity > 50) {
+      throw new Error(`quantity ${it.quantity} outside 1-50`);
+    }
+    const unitUsd = PRODIGI_UNIT_USD[it.size];
+    const shippingUsd = PRODIGI_SHIPPING_USD[it.size];
+    if (unitUsd === null || shippingUsd === null) {
+      throw new Error(`no pricing data for size ${it.size}`);
+    }
+    const lineProductAgorot = Math.round(
+      unitUsd * it.quantity * MARKUP * USD_TO_ILS * 100,
+    );
+    productAgorot += lineProductAgorot;
+    if (shippingUsd > shippingUsdMax) shippingUsdMax = shippingUsd;
+    lines.push({
+      size: it.size,
+      quantity: it.quantity,
+      productAgorot: lineProductAgorot,
+    });
+  }
+  const shippingAgorot = Math.round(shippingUsdMax * USD_TO_ILS * 100);
+  const handlingAgorot = HANDLING_AGOROT;
+  const totalAgorot = productAgorot + shippingAgorot + handlingAgorot;
+  return {
+    lines,
+    productAgorot,
+    shippingAgorot,
+    handlingAgorot,
+    totalAgorot,
+  };
+}
+
 export function formatIls(agorot: number): string {
   return `₪${(agorot / 100).toFixed(2).replace(/\.00$/, "")}`;
 }
