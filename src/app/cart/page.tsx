@@ -108,9 +108,11 @@ export default function CartPage() {
     );
   }
 
+  const emailValid = Boolean(address.email && /\S+@\S+\.\S+/.test(address.email));
   const canPay =
     Boolean(price) &&
-    Boolean(address.name && address.street && address.city && address.zip);
+    Boolean(address.name && address.street && address.city && address.zip) &&
+    emailValid;
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
@@ -180,6 +182,11 @@ export default function CartPage() {
                         ? formatIls(lineProduct.productAgorot)
                         : "—"}
                     </div>
+                    {lineProduct && lineProduct.bulkDiscount > 0 && (
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                        −{Math.round(lineProduct.bulkDiscount * 100)}%
+                      </div>
+                    )}
                     <button
                       onClick={() => removeItem(item.sessionId)}
                       className="mt-1 text-xs text-red-600 hover:underline dark:text-red-400"
@@ -238,14 +245,19 @@ export default function CartPage() {
                 dir="ltr"
               />
               <input
-                placeholder="אימייל (אופציונלי)"
+                type="email"
+                placeholder="אימייל"
                 value={address.email ?? ""}
                 onChange={(e) =>
                   setAddress({ ...address, email: e.target.value })
                 }
                 className="rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 sm:col-span-2"
                 dir="ltr"
+                required
               />
+              <p className="text-xs text-zinc-500 sm:col-span-2">
+                האימייל משמש לאישור הזמנה ולעדכוני משלוח.
+              </p>
             </div>
           </div>
 
@@ -275,8 +287,26 @@ export default function CartPage() {
               <dl className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-zinc-500">מדבקות</dt>
-                  <dd>{formatIls(price.productAgorot)}</dd>
+                  <dd>
+                    {price.productAgorot < price.productBeforeDiscountAgorot && (
+                      <span className="me-2 text-xs text-zinc-400 line-through">
+                        {formatIls(price.productBeforeDiscountAgorot)}
+                      </span>
+                    )}
+                    {formatIls(price.productAgorot)}
+                  </dd>
                 </div>
+                {price.productAgorot < price.productBeforeDiscountAgorot && (
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                    <dt>הנחת כמות</dt>
+                    <dd>
+                      −
+                      {formatIls(
+                        price.productBeforeDiscountAgorot - price.productAgorot,
+                      )}
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <dt className="text-zinc-500">משלוח (אחד לכל ההזמנה)</dt>
                   <dd>{formatIls(price.shippingAgorot)}</dd>

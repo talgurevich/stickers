@@ -178,6 +178,23 @@ export default function ConfigurePage({
                 </span>
               )}
             </div>
+            {price && (
+              <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/60">
+                <div className="font-semibold text-zinc-700 dark:text-zinc-200">
+                  ככל שמזמינים יותר, המחיר ליחידה יורד:
+                </div>
+                <ul className="mt-1 space-y-0.5 text-zinc-500">
+                  <li>5+ — 10% הנחה על המדבקות</li>
+                  <li>10+ — 20% הנחה</li>
+                  <li>20+ — 30% הנחה</li>
+                </ul>
+                {price.bulkDiscount > 0 && (
+                  <div className="mt-2 font-medium text-emerald-600">
+                    ✓ קיבלת {Math.round(price.bulkDiscount * 100)}% הנחה
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -198,12 +215,25 @@ export default function ConfigurePage({
               <>
                 <hr className="border-zinc-200 dark:border-zinc-800" />
                 <dl className="space-y-1 text-sm">
-                  <div className="flex justify-between text-base font-bold">
-                    <dt>מחיר הפריט</dt>
-                    <dd>{formatIls(price.productAgorot)}</dd>
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-zinc-500">מחיר ליחידה</dt>
+                    <dd className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatIls(price.perUnitAgorot)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">סך הפריט</dt>
+                    <dd className="font-semibold">
+                      {price.bulkDiscount > 0 && (
+                        <span className="me-2 text-xs text-zinc-400 line-through">
+                          {formatIls(price.productBeforeDiscountAgorot)}
+                        </span>
+                      )}
+                      {formatIls(price.productAgorot)}
+                    </dd>
                   </div>
                   <p className="text-xs text-zinc-500">
-                    משלוח וכתובת מתווספים בשלב הסל. משלוח אחד לכל ההזמנה.
+                    מחיר ליחידה כולל משלוח לכלל ההזמנה. הסכום הסופי בסל.
                   </p>
                 </dl>
               </>

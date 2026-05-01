@@ -60,6 +60,11 @@ export async function POST(req: Request) {
   if (!address?.name || !address.street || !address.city || !address.zip) {
     return NextResponse.json({ error: "address-incomplete" }, { status: 400 });
   }
+  // Email is required: it's the channel for order confirmation, shipping
+  // updates, and any post-fulfillment support contact.
+  if (!address.email || !/\S+@\S+\.\S+/.test(address.email)) {
+    return NextResponse.json({ error: "email-required" }, { status: 400 });
+  }
 
   // Validate items + resolve image paths from sessions. We trust the client's
   // imagePath only as a fallback for sessions that have already expired —
