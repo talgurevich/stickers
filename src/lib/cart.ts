@@ -27,7 +27,7 @@ type Cart = { items: CartItem[] };
 
 const EMPTY: Cart = { items: [] };
 
-function read(): Cart {
+function readFromStorage(): Cart {
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -40,9 +40,18 @@ function read(): Cart {
   }
 }
 
+// Cached snapshot — useSyncExternalStore's getSnapshot must return a
+// referentially stable value when nothing changed; returning a fresh object
+// every call trips React 19's infinite-loop guard and crashes the tree.
+let cachedSnapshot: Cart | null = null;
+function refreshSnapshot() {
+  cachedSnapshot = readFromStorage();
+}
+
 function write(c: Cart) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(c));
+  cachedSnapshot = c;
   // Notify same-tab subscribers — `storage` event only fires across tabs.
   window.dispatchEvent(new CustomEvent("wallaura-cart-changed"));
 }
@@ -50,7 +59,10 @@ function write(c: Cart) {
 const subscribe = (cb: () => void) => {
   if (typeof window === "undefined") return () => {};
   const onStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY) cb();
+    if (e.key === STORAGE_KEY) {
+      refreshSnapshot();
+      cb();
+    }
   };
   const onLocal = () => cb();
   window.addEventListener("storage", onStorage);
@@ -61,7 +73,10 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-const getSnapshot = (): Cart => read();
+const getSnapshot = (): Cart => {
+  if (cachedSnapshot === null) refreshSnapshot();
+  return cachedSnapshot ?? EMPTY;
+};
 const getServerSnapshot = (): Cart => EMPTY;
 
 export function useCart() {
@@ -78,7 +93,7 @@ export function useCartCount(): number {
 }
 
 export function addItem(item: Omit<CartItem, "addedAt">) {
-  const cart = read();
+  const cart = readFromStorage();
   // If a line for the same session already exists, replace it (user re-
   // configured the same image — a single sticker per session in cart).
   const next = cart.items.filter((i) => i.sessionId !== item.sessionId);
@@ -88,7 +103,7 @@ export function addItem(item: Omit<CartItem, "addedAt">) {
 
 export function updateQuantity(sessionId: string, quantity: number) {
   const q = Math.max(1, Math.min(50, Math.round(quantity)));
-  const cart = read();
+  const cart = readFromStorage();
   write({
     items: cart.items.map((i) =>
       i.sessionId === sessionId ? { ...i, quantity: q } : i,
@@ -97,7 +112,7 @@ export function updateQuantity(sessionId: string, quantity: number) {
 }
 
 export function removeItem(sessionId: string) {
-  const cart = read();
+  const cart = readFromStorage();
   write({ items: cart.items.filter((i) => i.sessionId !== sessionId) });
 }
 
