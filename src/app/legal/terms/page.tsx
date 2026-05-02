@@ -80,10 +80,13 @@ export default function TermsPage() {
 
         <h2 className="text-lg font-semibold">6. Fulfillment and shipping</h2>
         <p>
-          Items are printed and shipped by our fulfillment partner. Typical
-          shipping time to Israel is 7–14 business days from the day the order
-          enters production. Shipping addresses outside Israel are not
-          supported in the current version of the service.
+          Items are printed and shipped by our fulfillment partner. We currently
+          ship to: Israel, the United States, the United Kingdom, Germany,
+          France, Italy, Spain, Canada, Australia, and Thailand. Typical
+          shipping time is 7–14 business days for Israel and 10–21 business
+          days for international destinations. Customs duties, VAT, and any
+          other import charges levied by the destination country are the
+          responsibility of the recipient.
         </p>
 
         <h2 className="text-lg font-semibold">6a. Temporary tattoos &mdash; safety notice</h2>

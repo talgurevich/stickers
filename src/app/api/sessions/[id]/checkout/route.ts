@@ -9,6 +9,7 @@ import {
   isSizeForProduct,
   type ProductType,
 } from "@/lib/prodigi-catalog";
+import { isSupportedCountry, type CountryCode } from "@/lib/countries";
 import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
 import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
 import { STORAGE_BUCKET } from "@/lib/supabase";
@@ -65,11 +66,18 @@ export async function POST(
   if (!address?.name || !address.street || !address.city || !address.zip) {
     return NextResponse.json({ error: "address-incomplete" }, { status: 400 });
   }
+  if (!isSupportedCountry(address.country)) {
+    return NextResponse.json(
+      { error: `unsupported-country:${address.country}` },
+      { status: 400 },
+    );
+  }
+  const country: CountryCode = address.country;
   if (!session.imagePath) {
     return NextResponse.json({ error: "image-missing" }, { status: 400 });
   }
 
-  const price = priceFor(productType, size, quantity);
+  const price = priceFor(productType, size, quantity, country);
 
   // Persist the order row up-front. Print pipeline picks this up after
   // payment (or immediately, in test mode).

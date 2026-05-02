@@ -15,6 +15,7 @@ import {
   isSizeForProduct,
   type ProductType,
 } from "@/lib/prodigi-catalog";
+import { isSupportedCountry, type CountryCode } from "@/lib/countries";
 import {
   markCartPaid,
   submitCartForPrinting,
@@ -65,6 +66,13 @@ export async function POST(req: Request) {
   if (!address?.name || !address.street || !address.city || !address.zip) {
     return NextResponse.json({ error: "address-incomplete" }, { status: 400 });
   }
+  if (!isSupportedCountry(address.country)) {
+    return NextResponse.json(
+      { error: `unsupported-country:${address.country}` },
+      { status: 400 },
+    );
+  }
+  const country: CountryCode = address.country;
   // Email is required: it's the channel for order confirmation, shipping
   // updates, and any post-fulfillment support contact.
   if (!address.email || !/\S+@\S+\.\S+/.test(address.email)) {
@@ -129,6 +137,7 @@ export async function POST(req: Request) {
       size: r.size,
       quantity: r.quantity,
     })),
+    country,
   );
 
   const cartId = randomUUID();

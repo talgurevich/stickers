@@ -15,6 +15,11 @@ import {
   type ProductType,
   type StickerSize,
 } from "./prodigi-catalog";
+import {
+  isSupportedCountry,
+  type CountryCode,
+} from "./countries";
+import { SHIPPING_METHOD_BY_COUNTRY } from "./pricing";
 
 const PRINT_URL_TTL_SEC = 7 * 24 * 60 * 60; // 7 days — covers Prodigi pulling the file at production time
 
@@ -227,11 +232,13 @@ export async function submitCartForPrinting(
   // shipping address by construction (see /api/checkout/cart).
   const first = rows[0];
   const a = first.shipping_address;
+  const country: CountryCode = isSupportedCountry(a.country) ? a.country : "IL";
+  const shippingMethod = SHIPPING_METHOD_BY_COUNTRY[country];
 
   try {
     const r = await prodigiCreateOrder({
       merchantReference: cartId,
-      shippingMethod: "Budget",
+      shippingMethod,
       recipient: {
         name: a.name,
         email: a.email ?? first.email ?? undefined,
@@ -290,16 +297,18 @@ export async function submitOrderForPrinting(
 
   const printFileUrl = await signPrintFile(order);
   const a = order.shipping_address;
+  const country: CountryCode = isSupportedCountry(a.country) ? a.country : "IL";
+  const shippingMethod = SHIPPING_METHOD_BY_COUNTRY[country];
 
   try {
     const r = await prodigiCreateOrder({
       // Prodigi accepts free-form merchantReference; UUID with or without
       // dashes both fit (no length cap surfaced in docs / observed errors).
       merchantReference: order.id,
-      // Budget = FedEx P2P UnTrak from the GB2 lab. Slowest method but the
-      // only one that matches the shipping cost embedded in lib/pricing.ts;
-      // submitting Standard would silently burn ~$36 per order on shipping.
-      shippingMethod: "Budget",
+      // shippingMethod must match the rate we priced with — pricing.ts
+      // picks the cheapest available per country (Budget for IL/EU/UK/CA/AU/TH,
+      // Standard for US). Hard-coding Budget would burn ~$36 on US orders.
+      shippingMethod,
       recipient: {
         name: a.name,
         email: a.email ?? order.email ?? undefined,

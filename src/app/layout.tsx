@@ -3,6 +3,7 @@ import { Heebo } from "next/font/google";
 import "./globals.css";
 import Header from "./_components/Header";
 import Footer from "./_components/Footer";
+import MobileFirstNotice from "./_components/MobileFirstNotice";
 
 const heebo = Heebo({
   subsets: ["hebrew", "latin"],
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} dark h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <MobileFirstNotice />
         <Header />
         {children}
         <Footer />

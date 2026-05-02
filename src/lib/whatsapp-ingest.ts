@@ -60,21 +60,36 @@ export async function ingestInboundMedia(args: {
   }
 
   if (open) {
-    const path = `${open.id}/sticker.png`;
+    // Per-message path so two parallel webhooks for the same session
+    // don't overwrite each other's bytes. The conditional UPDATE below
+    // (WHERE status = 'awaiting_image') is the CAS that decides whose
+    // bytes the session points to — the loser falls through to orphan
+    // creation, ensuring all three of three quick-fire stickers are
+    // visible to the gallery (was: 2-of-3 due to race).
+    const path = `${open.id}/wa-${args.whatsappMessageId}.png`;
     const up = await sb.storage
       .from(STORAGE_BUCKET)
       .upload(path, png, { contentType: "image/png", upsert: true });
     if (up.error) {
       return { kind: "skipped", reason: `upload: ${up.error.message}` };
     }
-    const { error: updErr } = await sb
+    const { data: updated, error: updErr } = await sb
       .from("sessions")
       .update({ image_url: path, status: "image_received" })
-      .eq("id", open.id);
+      .eq("id", open.id)
+      .eq("status", "awaiting_image")
+      .select()
+      .maybeSingle();
     if (updErr) {
       return { kind: "skipped", reason: `db: ${updErr.message}` };
     }
-    return { kind: "matched", sessionId: open.id };
+    if (updated) {
+      return { kind: "matched", sessionId: open.id };
+    }
+    // Lost the race: another inbound for the same session won the CAS.
+    // Fall through to orphan creation so this sticker still surfaces in
+    // the /start/[id] gallery. The bytes already uploaded above are
+    // wasted but harmless — they'll be GC'd with the session bucket.
   }
 
   // No open session — store as an orphan. Use a temp path keyed by message id.

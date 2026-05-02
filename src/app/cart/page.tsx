@@ -11,13 +11,18 @@ import {
 } from "@/lib/cart";
 import { formatIls, priceForCart, type CartPriceBreakdown } from "@/lib/pricing";
 import { variantFor, PRODUCT_LABELS_HE } from "@/lib/prodigi-catalog";
+import {
+  SUPPORTED_COUNTRIES,
+  isSupportedCountry,
+  type CountryCode,
+} from "@/lib/countries";
 
 type Address = {
   name: string;
   street: string;
   city: string;
   zip: string;
-  country: string;
+  country: CountryCode;
   phone?: string;
   email?: string;
 };
@@ -47,6 +52,7 @@ export default function CartPage() {
           size: i.size,
           quantity: i.quantity,
         })),
+        address.country,
       );
     }
   } catch {
@@ -231,9 +237,28 @@ export default function CartPage() {
 
           <div>
             <h2 className="mt-6 mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              כתובת למשלוח (ישראל בלבד ב־MVP)
+              כתובת למשלוח
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-xs text-zinc-500">מדינה</span>
+                <select
+                  value={address.country}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (isSupportedCountry(v)) {
+                      setAddress({ ...address, country: v });
+                    }
+                  }}
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  {SUPPORTED_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.he}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <input
                 placeholder="שם מלא"
                 value={address.name}
@@ -281,6 +306,12 @@ export default function CartPage() {
               <p className="text-xs text-zinc-500 sm:col-span-2">
                 האימייל משמש לאישור הזמנה ולעדכוני משלוח.
               </p>
+              {address.country !== "IL" && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 sm:col-span-2 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
+                  למשלוחים מחוץ לישראל: ייתכן מע״מ/מכס במדינת היעד באחריות
+                  המקבל. זמני משלוח 7-21 ימי עסקים.
+                </p>
+              )}
             </div>
           </div>
 
@@ -357,8 +388,8 @@ export default function CartPage() {
               </pre>
             )}
             <p className="text-xs text-zinc-500">
-              מצב בדיקה — אין חיוב כרגע. ההזמנה נשלחת ל־Prodigi (UK/EU)
-              כטיוטה לאישור; משלוח 7-14 ימי עסקים לישראל.
+              מצב בדיקה — אין חיוב כרגע. ההזמנה נשלחת ל־Prodigi (UK)
+              כטיוטה לאישור; משלוח 7-21 ימי עסקים לפי מדינת היעד.
             </p>
           </div>
         </aside>
