@@ -1,13 +1,17 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { priceFor, formatIls, type PriceBreakdown } from "@/lib/pricing";
 import {
-  MVP_SIZES,
-  STICKER_VARIANTS,
-  type StickerSize,
+  DEFAULT_SIZE_BY_PRODUCT,
+  PRODUCT_LABELS_HE,
+  variantFor,
+  variantsForProduct,
+  isProductType,
+  isSizeForProduct,
+  type ProductType,
 } from "@/lib/prodigi-catalog";
 import { addItem, useCart } from "@/lib/cart";
 
@@ -17,6 +21,29 @@ type SessionView = {
   status: string;
   imageUrl?: string | null;
   imagePath?: string | null;
+};
+
+const PRODUCT_OPTIONS: ProductType[] = ["sticker", "magnet", "tattoo"];
+
+// Per-product blurb shown under the size grid. Honest about what the
+// product is so buyers don't expect sticker-style longevity from a tattoo.
+const PRODUCT_BLURB_HE: Record<ProductType, string> = {
+  sticker: "חיתוך kiss-cut על נייר ויניל מט. עמיד למים, עד 18 חודשים בחוץ.",
+  magnet: "מגנט פוטו עבה (0.6 מ״מ) — נדבק לכל משטח מתכתי. מתאים למקרר, לוח, ארון.",
+  tattoo: "טטו זמני להדבקה על העור. מתחזק 3-5 ימים, מורד בקלות עם שמן או אלכוהול. בטוח לעור (3+).",
+};
+
+// Per-product bulk discount tiers shown in the side panel. Mirror what
+// pricing.ts actually applies — keep these in sync if the tiers change.
+const BULK_TIERS_HE: Record<ProductType, string[]> = {
+  sticker: ["5+ — 10% הנחה", "10+ — 20% הנחה", "20+ — 30% הנחה"],
+  magnet: [
+    "3+ — 5% הנחה",
+    "5+ — 12% הנחה",
+    "10+ — 18% הנחה",
+    "20+ — 25% הנחה",
+  ],
+  tattoo: ["5+ — 15% הנחה", "10+ — 25% הנחה", "20+ — 35% הנחה"],
 };
 
 export default function ConfigurePage({
@@ -29,9 +56,23 @@ export default function ConfigurePage({
   const cart = useCart();
   const [session, setSession] = useState<SessionView | null>(null);
 
-  const existing = cart.items.find((i) => i.sessionId === id);
-  const [size, setSize] = useState<StickerSize>(existing?.size ?? "medium");
-  const [quantity, setQuantity] = useState(existing?.quantity ?? 1);
+  // If the user already configured this image as the same product, pre-fill
+  // from the existing line. Otherwise default to sticker.
+  const existingSticker = cart.items.find(
+    (i) => i.sessionId === id && i.productType === "sticker",
+  );
+  const existingForProduct = useMemo(
+    () => cart.items.filter((i) => i.sessionId === id),
+    [cart.items, id],
+  );
+  const seedProduct: ProductType =
+    (existingForProduct[0]?.productType as ProductType) ?? "sticker";
+  const seedSize =
+    existingForProduct[0]?.size ?? DEFAULT_SIZE_BY_PRODUCT[seedProduct];
+
+  const [productType, setProductType] = useState<ProductType>(seedProduct);
+  const [size, setSize] = useState<string>(seedSize);
+  const [quantity, setQuantity] = useState(existingForProduct[0]?.quantity ?? 1);
 
   useEffect(() => {
     fetch(`/api/sessions/${id}`, { cache: "no-store" })
@@ -45,21 +86,38 @@ export default function ConfigurePage({
       });
   }, [id, router]);
 
-  let price: PriceBreakdown | null = null;
-  try {
-    price = priceFor(size, quantity);
-  } catch {
-    price = null;
+  // Switching products invalidates the current size — reset to the new
+  // product's default. Keep the existing line's selection if there is one.
+  function pickProduct(next: ProductType) {
+    if (next === productType) return;
+    const existing = cart.items.find(
+      (i) => i.sessionId === id && i.productType === next,
+    );
+    setProductType(next);
+    setSize(existing?.size ?? DEFAULT_SIZE_BY_PRODUCT[next]);
+    setQuantity(existing?.quantity ?? 1);
   }
 
-  const variant = STICKER_VARIANTS[size];
+  const variants = variantsForProduct(productType);
+  const variant = variantFor(productType, size);
+
+  let price: PriceBreakdown | null = null;
+  if (variant && isSizeForProduct(productType, size)) {
+    try {
+      price = priceFor(productType, size, quantity);
+    } catch {
+      price = null;
+    }
+  }
 
   function addToCart(opts: { thenGo: "cart" | "more" }) {
-    if (!session?.imagePath) return;
+    if (!session?.imagePath || !variant) return;
+    if (!isProductType(productType)) return;
     addItem({
       sessionId: id,
       imagePath: session.imagePath,
       imageUrl: session.imageUrl ?? null,
+      productType,
       size,
       quantity,
     });
@@ -75,16 +133,25 @@ export default function ConfigurePage({
     );
   }
 
-  // Preview width — scale 1mm to ~2.4 px so the displayed sticker has roughly
+  if (!variant) {
+    return (
+      <main className="flex flex-1 items-center justify-center">
+        <p className="text-zinc-500">שגיאה: גודל לא תקין</p>
+      </main>
+    );
+  }
+
+  // Preview width — scale 1mm to ~2.4 px so the displayed product has roughly
   // the right proportional feel on screen (capped by container).
   const previewW = Math.min(420, variant.widthMm * 2.4);
   const previewH = Math.min(420, variant.heightMm * 2.4);
 
   const cartCount = cart.items.reduce((n, i) => n + i.quantity, 0);
+  const productLabelSingular = PRODUCT_LABELS_HE[productType];
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-      <h1 className="mb-8 text-3xl font-bold">בנו את המדבקה שלכם</h1>
+      <h1 className="mb-8 text-3xl font-bold">בנו את ה{productLabelSingular} שלכם</h1>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
         <section className="space-y-8">
@@ -93,7 +160,7 @@ export default function ConfigurePage({
               {session.imageUrl ? (
                 <Image
                   src={session.imageUrl}
-                  alt="המדבקה שלך"
+                  alt="התמונה שלך"
                   width={420}
                   height={420}
                   unoptimized
@@ -112,35 +179,63 @@ export default function ConfigurePage({
 
           <div>
             <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              גודל
+              סוג מוצר
             </h2>
             <div className="grid grid-cols-3 gap-3">
-              {MVP_SIZES.map((s) => {
-                const v = STICKER_VARIANTS[s];
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setSize(s)}
-                    className={
-                      "rounded-lg border-2 px-4 py-3 text-center transition " +
-                      (size === s
-                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                        : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
-                    }
-                  >
-                    <div className="text-base font-bold">{v.labelHe.split(" · ")[0]}</div>
-                    <div className="text-xs text-zinc-500">
-                      {v.labelHe.split(" · ")[1]}
-                    </div>
-                    <div className="mt-1 text-[10px] uppercase text-zinc-400">
-                      {v.shape === "square" ? "ריבוע" : "מלבן"}
-                    </div>
-                  </button>
-                );
-              })}
+              {PRODUCT_OPTIONS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => pickProduct(p)}
+                  className={
+                    "rounded-lg border-2 px-4 py-3 text-center transition " +
+                    (productType === p
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                      : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
+                  }
+                >
+                  <div className="text-base font-bold">
+                    {PRODUCT_LABELS_HE[p]}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+              גודל
+            </h2>
+            <div
+              className={
+                "grid gap-3 " +
+                (variants.length === 2 ? "grid-cols-2" : "grid-cols-3")
+              }
+            >
+              {variants.map((v) => (
+                <button
+                  key={v.size}
+                  onClick={() => setSize(v.size)}
+                  className={
+                    "rounded-lg border-2 px-4 py-3 text-center transition " +
+                    (size === v.size
+                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                      : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800")
+                  }
+                >
+                  <div className="text-base font-bold">
+                    {v.labelHe.split(" · ")[0]}
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    {v.labelHe.split(" · ")[1]}
+                  </div>
+                  <div className="mt-1 text-[10px] uppercase text-zinc-400">
+                    {v.shape === "square" ? "ריבוע" : "מלבן"}
+                  </div>
+                </button>
+              ))}
             </div>
             <p className="mt-2 text-xs text-zinc-500">
-              חיתוך kiss-cut על נייר ויניל מט. עמיד למים, עד 18 חודשים בחוץ.
+              {PRODUCT_BLURB_HE[productType]}
             </p>
           </div>
 
@@ -184,9 +279,9 @@ export default function ConfigurePage({
                   ככל שמזמינים יותר, המחיר ליחידה יורד:
                 </div>
                 <ul className="mt-1 space-y-0.5 text-zinc-500">
-                  <li>5+ — 10% הנחה על המדבקות</li>
-                  <li>10+ — 20% הנחה</li>
-                  <li>20+ — 30% הנחה</li>
+                  {BULK_TIERS_HE[productType].map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
                 </ul>
                 {price.bulkDiscount > 0 && (
                   <div className="mt-2 font-medium text-emerald-600">
@@ -202,6 +297,10 @@ export default function ConfigurePage({
           <div className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <h3 className="text-lg font-bold">סיכום הפריט</h3>
             <dl className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-zinc-500">סוג</dt>
+                <dd>{productLabelSingular}</dd>
+              </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">גודל</dt>
                 <dd>{variant.labelHe}</dd>
@@ -243,18 +342,18 @@ export default function ConfigurePage({
               disabled={!price || !session.imagePath}
               className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-full bg-emerald-600 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
             >
-              {existing ? "עדכון בסל ומעבר לסל" : "הוספה לסל ומעבר לסל"}
+              {existingSticker ? "עדכון בסל ומעבר לסל" : "הוספה לסל ומעבר לסל"}
             </button>
             <button
               onClick={() => addToCart({ thenGo: "more" })}
               disabled={!price || !session.imagePath}
               className="inline-flex h-12 w-full items-center justify-center rounded-full border border-zinc-300 bg-white text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800"
             >
-              הוספה לסל והוספת מדבקה נוספת
+              הוספה לסל והוספת מוצר נוסף
             </button>
             {cartCount > 0 && (
               <p className="text-center text-xs text-zinc-500">
-                בסל כבר {cartCount} {cartCount === 1 ? "מדבקה" : "מדבקות"}
+                בסל כבר {cartCount} פריטים
               </p>
             )}
           </div>

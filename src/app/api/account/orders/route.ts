@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const { data, error } = await sb
     .from("orders")
     .select(
-      "id, size_mm, quantity, total_agorot, paid_at, printful_order_id, printful_status, image_url, created_at",
+      "id, product_type, size_mm, quantity, total_agorot, paid_at, printful_order_id, printful_status, image_url, created_at",
     )
     .eq("phone_e164", phone)
     .order("created_at", { ascending: false })
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       }
       return {
         id: r.id,
+        productType: (r as { product_type?: string }).product_type ?? "sticker",
         size: r.size_mm,
         quantity: r.quantity,
         totalAgorot: r.total_agorot,

@@ -3,7 +3,11 @@
 
 import Link from "next/link";
 import { serverClient, STORAGE_BUCKET } from "@/lib/supabase";
-import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
+import {
+  PRODUCT_LABELS_HE,
+  isProductType,
+  variantFor,
+} from "@/lib/prodigi-catalog";
 import { formatIls } from "@/lib/pricing";
 import ClearCartOnMount from "./ClearCartOnMount";
 
@@ -12,6 +16,7 @@ export const runtime = "nodejs";
 type OrderRow = {
   id: string;
   cart_id: string | null;
+  product_type: string | null;
   size_mm: string;
   cut_type: string;
   quantity: number;
@@ -29,7 +34,7 @@ async function loadCart(cartId: string): Promise<OrderRow[]> {
   const { data } = await serverClient()
     .from("orders")
     .select(
-      "id, cart_id, size_mm, cut_type, quantity, shipping_address, product_cost_agorot, shipping_cost_agorot, total_agorot, paid_at, printful_order_id, printful_status, image_url",
+      "id, cart_id, product_type, size_mm, cut_type, quantity, shipping_address, product_cost_agorot, shipping_cost_agorot, total_agorot, paid_at, printful_order_id, printful_status, image_url",
     )
     .eq("cart_id", cartId)
     .order("created_at", { ascending: true });
@@ -87,15 +92,16 @@ export default async function CartConfirmationPage({
           <p className="mt-1 text-sm text-zinc-500">
             {rows.length === 1
               ? "מצב נוכחי: בדיקה — אין חיוב, ההזמנה נשלחה ל־Prodigi כטיוטה."
-              : `${rows.length} מדבקות נשלחות במשלוח אחד. מצב בדיקה — אין חיוב, ההזמנה נשלחה ל־Prodigi כטיוטה.`}
+              : `${rows.length} פריטים נשלחים במשלוח אחד. מצב בדיקה — אין חיוב, ההזמנה נשלחה ל־Prodigi כטיוטה.`}
           </p>
         </div>
 
         <ul className="space-y-3">
           {rows.map((row, i) => {
-            const variant = isStickerSize(row.size_mm)
-              ? STICKER_VARIANTS[row.size_mm]
-              : null;
+            const productType = isProductType(row.product_type)
+              ? row.product_type
+              : "sticker";
+            const variant = variantFor(productType, row.size_mm);
             return (
               <li
                 key={row.id}
@@ -113,7 +119,8 @@ export default async function CartConfirmationPage({
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">
-                    {variant?.labelHe ?? row.size_mm}
+                    {PRODUCT_LABELS_HE[productType]}
+                    {variant ? ` · ${variant.labelHe}` : ` · ${row.size_mm}`}
                   </div>
                   <div className="text-xs text-zinc-500">
                     כמות: {row.quantity}
@@ -133,7 +140,7 @@ export default async function CartConfirmationPage({
             <dd className="font-mono text-xs">{id}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-zinc-500">מדבקות</dt>
+            <dt className="text-zinc-500">פריטים</dt>
             <dd>{formatIls(productAgorot)}</dd>
           </div>
           <div className="flex justify-between">

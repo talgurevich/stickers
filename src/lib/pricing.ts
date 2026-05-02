@@ -1,91 +1,182 @@
-// Sticker pricing — derived from real Prodigi /quotes for IL shipping on
-// 2026-04-30 (full dump in scripts/prodigi-quotes.json). Re-run
-// scripts/quote-prodigi.mjs to refresh whenever Prodigi changes pricing.
+// Multi-product pricing — derived from real Prodigi /quotes for IL shipping.
+// Sticker rates verified 2026-04-30 (scripts/prodigi-quotes.json),
+// magnet + tattoo rates verified 2026-05-02 (scripts/prodigi-quotes-multi.json).
+// Re-run scripts/quote-prodigi*.mjs whenever Prodigi pricing changes.
 //
-// Formula:
-//   product cost (USD)  = Prodigi unit cost × quantity
-//   shipping cost (USD) = Prodigi Budget shipping (flat per shipment)
-//   product retail (ILS) = product cost × MARKUP × USD_TO_ILS
-//   shipping (ILS)       = shipping cost × USD_TO_ILS  (passed through at cost)
+// Formula (per line):
+//   product retail (ILS) = unit_usd × qty × MARKUP[product] × USD_TO_ILS × (1 - bulk_discount)
+//   shipping (ILS)       = max(shipping_usd) × USD_TO_ILS  // one shipment per cart
 //   total (ILS)          = product retail + shipping + handling
 //
-// We deliberately removed the old artificial 10/20% quantity discounts —
-// shipping is flat, so the per-unit price drops naturally as quantity grows
-// (a single Small is ~₪35; ten Smalls is ~₪9 each).
+// Shipping is at cost (no markup) — keeps the line item honest. We assume
+// Prodigi consolidates a multi-product cart into one parcel; verify this
+// once we have a real mixed order in flight.
 
-import type { StickerSize } from "./prodigi-catalog";
+import type {
+  ProductType,
+  StickerSize,
+  MagnetSize,
+  TattooSize,
+} from "./prodigi-catalog";
 
-// Prodigi production cost per single sticker, USD (from /quotes).
-const PRODIGI_UNIT_USD: Record<StickerSize, number | null> = {
+// --- Per-product Prodigi cost tables (USD) --------------------------------
+
+const STICKER_UNIT_USD: Record<StickerSize, number | null> = {
   small: 1.09,
   medium: 3.39,
   large: 6.11,
-  xlarge: null, // not in MVP picker; re-run quote when enabling
+  xlarge: null,
 };
-
-// Prodigi Budget shipping to IL, USD (flat per shipment).
-const PRODIGI_SHIPPING_USD: Record<StickerSize, number | null> = {
+const STICKER_SHIPPING_USD: Record<StickerSize, number | null> = {
   small: 7.47,
   medium: 7.47,
   large: 9.44,
   xlarge: null,
 };
 
+const MAGNET_UNIT_USD: Record<MagnetSize, number> = {
+  small: 5.43,
+  large: 8.15,
+};
+const MAGNET_SHIPPING_USD: Record<MagnetSize, number> = {
+  small: 7.47,
+  large: 7.47,
+};
+
+const TATTOO_UNIT_USD: Record<TattooSize, number> = {
+  s: 4.01,
+  m: 8.08,
+  l: 12.15,
+};
+const TATTOO_SHIPPING_USD: Record<TattooSize, number> = {
+  s: 7.47,
+  m: 7.47,
+  l: 7.47,
+};
+
+// --- Global constants -----------------------------------------------------
+
 // Frozen FX. Bank of Israel reference rate fluctuates daily; pinning a
-// slightly conservative value keeps prices stable and absorbs small swings.
-// Revisit if USD/ILS moves >10% off this number.
+// slightly conservative value keeps prices stable. Revisit if USD/ILS moves
+// >10% off this number.
 const USD_TO_ILS = 3.7;
 
-// Retail markup applied to item cost only. Shipping is passed through
-// without markup — keeps the line item honest and the total approachable.
-const MARKUP = 1.6;
+// Per-product retail markup applied to item cost only. Shipping is passed
+// through without markup. Magnets and tattoos have higher base costs than
+// stickers, so a 1.6× markup would price them out of the market — we
+// compress markup on the more expensive products to keep retail reasonable.
+const MARKUP_BY_PRODUCT: Record<ProductType, number> = {
+  sticker: 1.6,
+  magnet: 1.5,
+  tattoo: 1.55,
+};
 
-// Marketing-level bulk discount on the markup. Prodigi itself charges flat
-// per-copy at production (no bulk discount from them), so this comes out of
-// our margin: it signals "buy more, save more" and keeps the per-unit price
-// from looking insulting at qty=5+. Applied to the marked-up product cost,
-// not to shipping or handling. Tweak freely — these are pure pricing knobs.
-function bulkDiscountFor(quantity: number): number {
-  if (quantity >= 20) return 0.3; // 30% off items
-  if (quantity >= 10) return 0.2; // 20%
-  if (quantity >= 5) return 0.1; // 10%
+// Per-product handling fee in agorot. Buffers FX drift, PayPlus processing
+// fees, and small operational overhead.
+const HANDLING_AGOROT = 300; // ₪3, all products
+
+// --- Bulk discount tiers, per product -------------------------------------
+//
+// Sticker tiers (10/20/30) are aggressive because base cost is tiny and the
+// bulk discount creates the perception of value at high qty.
+//
+// Magnets are mid-priced; buyers tend to order for fridges/events in small
+// batches (2–6) rather than 20+. Earlier first tier (qty 3) rewards the
+// 1→3 upsell, lower cap (25%) because base cost leaves less margin to give.
+//
+// Tattoos are the bulk product — birthday parties, events. Deeper tiers and
+// a higher cap (35%) push the 10+ and 20+ thresholds.
+
+function bulkDiscountForSticker(qty: number): number {
+  if (qty >= 20) return 0.3;
+  if (qty >= 10) return 0.2;
+  if (qty >= 5) return 0.1;
   return 0;
 }
 
-// Per-order handling fee (agorot) — buffer for FX drift, payment processor
-// fees once PayPlus is enabled, and small operational overhead.
-const HANDLING_AGOROT = 300; // ₪3
+function bulkDiscountForMagnet(qty: number): number {
+  if (qty >= 20) return 0.25;
+  if (qty >= 10) return 0.18;
+  if (qty >= 5) return 0.12;
+  if (qty >= 3) return 0.05;
+  return 0;
+}
+
+function bulkDiscountForTattoo(qty: number): number {
+  if (qty >= 20) return 0.35;
+  if (qty >= 10) return 0.25;
+  if (qty >= 5) return 0.15;
+  return 0;
+}
+
+export function bulkDiscountFor(type: ProductType, qty: number): number {
+  switch (type) {
+    case "sticker":
+      return bulkDiscountForSticker(qty);
+    case "magnet":
+      return bulkDiscountForMagnet(qty);
+    case "tattoo":
+      return bulkDiscountForTattoo(qty);
+  }
+}
+
+// --- Per-product cost lookup ----------------------------------------------
+
+function unitUsdFor(type: ProductType, size: string): number | null {
+  switch (type) {
+    case "sticker":
+      return STICKER_UNIT_USD[size as StickerSize] ?? null;
+    case "magnet":
+      return MAGNET_UNIT_USD[size as MagnetSize] ?? null;
+    case "tattoo":
+      return TATTOO_UNIT_USD[size as TattooSize] ?? null;
+  }
+}
+
+function shippingUsdFor(type: ProductType, size: string): number | null {
+  switch (type) {
+    case "sticker":
+      return STICKER_SHIPPING_USD[size as StickerSize] ?? null;
+    case "magnet":
+      return MAGNET_SHIPPING_USD[size as MagnetSize] ?? null;
+    case "tattoo":
+      return TATTOO_SHIPPING_USD[size as TattooSize] ?? null;
+  }
+}
+
+// --- Single-line price (one product, one size, one quantity) --------------
 
 export type PriceBreakdown = {
   productAgorot: number;
   shippingAgorot: number;
   totalAgorot: number;
-  /** Per-sticker delivered price for display ("מחיר ליחידה"). */
+  /** Per-piece delivered price for display. */
   perUnitAgorot: number;
-  /** Bulk discount applied (0..0.3); 0 means no discount. */
+  /** Bulk discount applied (0..0.35); 0 means none. */
   bulkDiscount: number;
-  /** What product would have cost without bulk discount, for "before" display. */
+  /** What product would have cost without bulk discount (for "before" display). */
   productBeforeDiscountAgorot: number;
 };
 
 export function priceFor(
-  size: StickerSize,
+  productType: ProductType,
+  size: string,
   quantity: number,
 ): PriceBreakdown {
   if (quantity < 1 || quantity > 50) {
     throw new Error(`quantity ${quantity} outside 1-50`);
   }
-  const unitUsd = PRODIGI_UNIT_USD[size];
-  const shippingUsd = PRODIGI_SHIPPING_USD[size];
+  const unitUsd = unitUsdFor(productType, size);
+  const shippingUsd = shippingUsdFor(productType, size);
   if (unitUsd === null || shippingUsd === null) {
-    throw new Error(`no pricing data for size ${size}`);
+    throw new Error(`no pricing data for ${productType}/${size}`);
   }
+  const markup = MARKUP_BY_PRODUCT[productType];
 
-  // Compute in agorot directly to avoid floating-point drift.
   const productBeforeDiscountAgorot = Math.round(
-    unitUsd * quantity * MARKUP * USD_TO_ILS * 100,
+    unitUsd * quantity * markup * USD_TO_ILS * 100,
   );
-  const bulkDiscount = bulkDiscountFor(quantity);
+  const bulkDiscount = bulkDiscountFor(productType, quantity);
   const productAgorot = Math.round(
     productBeforeDiscountAgorot * (1 - bulkDiscount),
   );
@@ -103,13 +194,17 @@ export function priceFor(
   };
 }
 
+// --- Cart price (mixed products, single shipment) -------------------------
+
 export type CartPriceItem = {
-  size: StickerSize;
+  productType: ProductType;
+  size: string;
   quantity: number;
 };
 
 export type CartPriceLine = {
-  size: StickerSize;
+  productType: ProductType;
+  size: string;
   quantity: number;
   productAgorot: number;
   productBeforeDiscountAgorot: number;
@@ -125,14 +220,16 @@ export type CartPriceBreakdown = {
   totalAgorot: number;
 };
 
-// One shipment regardless of how many designs — Prodigi packs everything
-// into a single parcel, so we charge shipping once. The largest item's
-// shipping rate dominates (the parcel grows with the biggest sticker), so
-// we use the max across items rather than summing per-item rates.
+// One shipment for the whole cart — Prodigi consolidates into a single
+// parcel. The biggest item dictates the parcel size, so shipping is the
+// MAX shipping rate across all lines (not the sum). If we discover Prodigi
+// splits mixed-product carts into separate shipments, this becomes a sum
+// (or a per-product-type max + sum across types). Verify with a real
+// mixed order.
 //
-// Bulk discount is applied per-line on its own quantity, not on the cart
-// total. (Otherwise mixing 1 small + 4 large would leak a discount tier;
-// users who want the 5+ price should buy 5 of the same design.)
+// Bulk discount is applied per-line on its own (productType, qty), not on
+// cart totals — buying 1 small sticker + 4 small magnets gives no discount
+// on either, which is correct.
 export function priceForCart(items: CartPriceItem[]): CartPriceBreakdown {
   if (items.length === 0) {
     throw new Error("cart is empty");
@@ -141,24 +238,29 @@ export function priceForCart(items: CartPriceItem[]): CartPriceBreakdown {
   let productAgorot = 0;
   let productBeforeDiscountAgorot = 0;
   let shippingUsdMax = 0;
+
   for (const it of items) {
     if (it.quantity < 1 || it.quantity > 50) {
       throw new Error(`quantity ${it.quantity} outside 1-50`);
     }
-    const unitUsd = PRODIGI_UNIT_USD[it.size];
-    const shippingUsd = PRODIGI_SHIPPING_USD[it.size];
+    const unitUsd = unitUsdFor(it.productType, it.size);
+    const shippingUsd = shippingUsdFor(it.productType, it.size);
     if (unitUsd === null || shippingUsd === null) {
-      throw new Error(`no pricing data for size ${it.size}`);
+      throw new Error(`no pricing data for ${it.productType}/${it.size}`);
     }
+    const markup = MARKUP_BY_PRODUCT[it.productType];
     const lineBeforeDiscount = Math.round(
-      unitUsd * it.quantity * MARKUP * USD_TO_ILS * 100,
+      unitUsd * it.quantity * markup * USD_TO_ILS * 100,
     );
-    const lineDiscount = bulkDiscountFor(it.quantity);
-    const lineProductAgorot = Math.round(lineBeforeDiscount * (1 - lineDiscount));
+    const lineDiscount = bulkDiscountFor(it.productType, it.quantity);
+    const lineProductAgorot = Math.round(
+      lineBeforeDiscount * (1 - lineDiscount),
+    );
     productAgorot += lineProductAgorot;
     productBeforeDiscountAgorot += lineBeforeDiscount;
     if (shippingUsd > shippingUsdMax) shippingUsdMax = shippingUsd;
     lines.push({
+      productType: it.productType,
       size: it.size,
       quantity: it.quantity,
       productAgorot: lineProductAgorot,

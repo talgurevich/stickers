@@ -1,16 +1,19 @@
 // Client-side cart store, persisted in localStorage.
 //
 // Each line item references a session (which owns the image in storage) plus
-// the buyer's chosen size + quantity. The image path is duplicated into the
-// line item so checkout can post images directly without depending on the
-// session row still being live (sessions expire 60 min after creation).
+// the buyer's chosen product type, size, and quantity. The image path is
+// duplicated into the line item so checkout can post images directly
+// without depending on the session row still being live (sessions expire
+// 60 min after creation).
 
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { StickerSize } from "./prodigi-catalog";
+import type { ProductType } from "./prodigi-catalog";
 
-const STORAGE_KEY = "wallaura.cart.v1";
+// v2: added productType per line. v1 (sticker-only) carts are dropped on
+// load — small UX cost, avoids brittle migration of stale carts.
+const STORAGE_KEY = "wallaura.cart.v2";
 
 export type CartItem = {
   sessionId: string;
@@ -18,7 +21,9 @@ export type CartItem = {
   imagePath: string;
   /** Signed URL captured at add-time; for display only, may go stale. */
   imageUrl: string | null;
-  size: StickerSize;
+  productType: ProductType;
+  /** Size string, interpreted in context of productType. */
+  size: string;
   quantity: number;
   addedAt: string;
 };
@@ -94,26 +99,40 @@ export function useCartCount(): number {
 
 export function addItem(item: Omit<CartItem, "addedAt">) {
   const cart = readFromStorage();
-  // If a line for the same session already exists, replace it (user re-
-  // configured the same image — a single sticker per session in cart).
-  const next = cart.items.filter((i) => i.sessionId !== item.sessionId);
+  // Dedup key is (sessionId, productType): the same image can live in the
+  // cart as both a sticker AND a magnet, but re-configuring the same
+  // (image, product) replaces the prior line.
+  const next = cart.items.filter(
+    (i) =>
+      !(i.sessionId === item.sessionId && i.productType === item.productType),
+  );
   next.push({ ...item, addedAt: new Date().toISOString() });
   write({ items: next });
 }
 
-export function updateQuantity(sessionId: string, quantity: number) {
+export function updateQuantity(
+  sessionId: string,
+  productType: ProductType,
+  quantity: number,
+) {
   const q = Math.max(1, Math.min(50, Math.round(quantity)));
   const cart = readFromStorage();
   write({
     items: cart.items.map((i) =>
-      i.sessionId === sessionId ? { ...i, quantity: q } : i,
+      i.sessionId === sessionId && i.productType === productType
+        ? { ...i, quantity: q }
+        : i,
     ),
   });
 }
 
-export function removeItem(sessionId: string) {
+export function removeItem(sessionId: string, productType: ProductType) {
   const cart = readFromStorage();
-  write({ items: cart.items.filter((i) => i.sessionId !== sessionId) });
+  write({
+    items: cart.items.filter(
+      (i) => !(i.sessionId === sessionId && i.productType === productType),
+    ),
+  });
 }
 
 export function clearCart() {

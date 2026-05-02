@@ -3,7 +3,11 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserClient } from "@/lib/supabase-browser";
-import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
+import {
+  PRODUCT_LABELS_HE,
+  isProductType,
+  variantFor,
+} from "@/lib/prodigi-catalog";
 
 type SessionView = {
   id: string;
@@ -14,6 +18,7 @@ type SessionView = {
 
 type PastOrder = {
   id: string;
+  productType: string;
   size: string;
   quantity: number;
   thumbUrl: string | null;
@@ -60,12 +65,14 @@ export default function StartPage({
                 (acc.orders ?? []).map(
                   (o: {
                     id: string;
+                    productType?: string;
                     size: string;
                     quantity: number;
                     thumbUrl: string | null;
                     createdAt: string;
                   }) => ({
                     id: o.id,
+                    productType: o.productType ?? "sticker",
                     size: o.size,
                     quantity: o.quantity,
                     thumbUrl: o.thumbUrl,
@@ -132,17 +139,17 @@ export default function StartPage({
     ? `+${servicePhone.replace(/(\d{3})(\d{2})(\d{3})(\d{4})/, "$1 $2 $3 $4")}`
     : null;
   const waLink = servicePhone
-    ? `https://wa.me/${servicePhone}?text=${encodeURIComponent("מצרפ.ת מדבקה")}`
+    ? `https://wa.me/${servicePhone}?text=${encodeURIComponent("מצרפ.ת תמונה")}`
     : "#";
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-12">
       <div className="w-full max-w-md space-y-8 text-center">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">שלחו לנו את הסטיקר</h1>
+          <h1 className="text-3xl font-bold">שלחו לנו את התמונה</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            פותחים וואטסאפ ושולחים את הסטיקר למספר השירות. ברגע שיגיע — נמשיך
-            אוטומטית.
+            פותחים וואטסאפ ושולחים סטיקר או תמונה למספר השירות. ברגע שיגיע —
+            תוכלו לבחור מה להדפיס: מדבקה, מגנט, או טטו זמני.
           </p>
         </div>
 
@@ -163,13 +170,13 @@ export default function StartPage({
             </div>
           )}
           <div className="mt-3 text-xs text-zinc-500">
-            שלחו את הסטיקר ממספר הטלפון שאיתו פתחתם את ההזמנה.
+            שלחו את התמונה ממספר הטלפון שאיתו פתחתם את ההזמנה.
           </div>
         </a>
 
         <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-          ממתין לסטיקר...
+          ממתין לתמונה...
         </div>
 
         <p className="text-xs text-zinc-500">
@@ -179,7 +186,7 @@ export default function StartPage({
         {pastOrders.length > 0 && (
           <div className="space-y-3 border-t border-zinc-200 pt-8 text-right dark:border-zinc-800">
             <h2 className="text-base font-semibold">
-              או בחרו מדבקה שכבר הזמנתם
+              או בחרו פריט שכבר הזמנתם
             </h2>
             <p className="text-xs text-zinc-500">
               מצאנו {pastOrders.length} הזמנות קודמות מהטלפון הזה. הקליקו על
@@ -187,9 +194,10 @@ export default function StartPage({
             </p>
             <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {pastOrders.map((o) => {
-                const variant = isStickerSize(o.size)
-                  ? STICKER_VARIANTS[o.size]
-                  : null;
+                const productType = isProductType(o.productType)
+                  ? o.productType
+                  : "sticker";
+                const variant = variantFor(productType, o.size);
                 return (
                   <li key={o.id}>
                     <button
@@ -208,7 +216,8 @@ export default function StartPage({
                         <div className="aspect-square w-full rounded bg-zinc-100 dark:bg-zinc-800" />
                       )}
                       <span className="truncate text-[10px] text-zinc-500">
-                        {variant?.labelHe.split(" · ")[0] ?? o.size}
+                        {PRODUCT_LABELS_HE[productType]}
+                        {variant ? ` · ${variant.labelHe.split(" · ")[0]}` : ""}
                       </span>
                     </button>
                   </li>

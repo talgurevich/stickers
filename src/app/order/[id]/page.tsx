@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { serverClient } from "@/lib/supabase";
-import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
+import {
+  PRODUCT_LABELS_HE,
+  isProductType,
+  variantFor,
+} from "@/lib/prodigi-catalog";
 import { formatIls } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
 type OrderRow = {
   id: string;
+  product_type: string | null;
   size_mm: string;
   cut_type: string;
   quantity: number;
@@ -21,7 +26,7 @@ async function loadOrder(id: string): Promise<OrderRow | null> {
   const { data } = await serverClient()
     .from("orders")
     .select(
-      "id, size_mm, cut_type, quantity, shipping_address, total_agorot, paid_at, printful_order_id, printful_status",
+      "id, product_type, size_mm, cut_type, quantity, shipping_address, total_agorot, paid_at, printful_order_id, printful_status",
     )
     .eq("id", id)
     .maybeSingle();
@@ -49,9 +54,11 @@ export default async function OrderConfirmationPage({
     );
   }
 
-  const variant = isStickerSize(order.size_mm)
-    ? STICKER_VARIANTS[order.size_mm]
-    : null;
+  const productType = isProductType(order.product_type)
+    ? order.product_type
+    : "sticker";
+  const variant = variantFor(productType, order.size_mm);
+  const productLabel = PRODUCT_LABELS_HE[productType];
 
   return (
     <main className="mx-auto w-full max-w-xl flex-1 px-6 py-12">
@@ -70,6 +77,10 @@ export default async function OrderConfirmationPage({
           <div className="flex justify-between">
             <dt className="text-zinc-500">מספר הזמנה</dt>
             <dd className="font-mono text-xs">{order.id}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-zinc-500">סוג</dt>
+            <dd>{productLabel}</dd>
           </div>
           {variant && (
             <div className="flex justify-between">
