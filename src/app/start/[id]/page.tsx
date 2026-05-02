@@ -149,7 +149,7 @@ export default function StartPage({
           <h1 className="text-3xl font-bold">שלחו לנו את התמונה</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             פותחים וואטסאפ ושולחים סטיקר או תמונה למספר השירות. ברגע שיגיע —
-            תוכלו לבחור מה להדפיס: מדבקה, מגנט, או טטו זמני.
+            תוכלו לבחור מה להדפיס: מדבקה, מגנט, או קעקוע זמני.
           </p>
         </div>
 
