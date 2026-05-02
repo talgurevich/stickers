@@ -43,7 +43,7 @@ export default function MobileFirstNotice() {
     <div className="hidden items-center justify-center gap-3 border-b border-emerald-300/30 bg-emerald-600/95 px-4 py-2 text-center text-sm text-white md:flex">
       <span>📱</span>
       <span>
-        האתר תוכנן לחוויית מובייל. ניתן להמשיך כאן, אך מומלץ לפתוח בנייד.
+        פססט… האתר הזה נולד בשביל הכיס שלך. אפשר להישאר כאן, אבל בנייד הוא ממש קורן.
       </span>
       <button
         onClick={dismiss}
