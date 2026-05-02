@@ -30,7 +30,7 @@ const PRODUCT_OPTIONS: ProductType[] = ["sticker", "magnet", "tattoo"];
 const PRODUCT_BLURB_HE: Record<ProductType, string> = {
   sticker: "חיתוך kiss-cut על נייר ויניל מט. עמיד למים, עד 18 חודשים בחוץ.",
   magnet: "מגנט פוטו עבה (0.6 מ״מ) — נדבק לכל משטח מתכתי. מתאים למקרר, לוח, ארון.",
-  tattoo: "טטו זמני להדבקה על העור. מתחזק 3-5 ימים, מורד בקלות עם שמן או אלכוהול. בטוח לעור (3+).",
+  tattoo: "קעקוע זמני להדבקה על העור. מתחזק 3-5 ימים, מורד בקלות עם שמן או אלכוהול. בטוח לעור (3+).",
 };
 
 // Per-product bulk discount tiers shown in the side panel. Mirror what

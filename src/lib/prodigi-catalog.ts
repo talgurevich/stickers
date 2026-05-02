@@ -157,14 +157,14 @@ export const DEFAULT_SIZE_BY_PRODUCT = {
 export const PRODUCT_LABELS_HE: Record<ProductType, string> = {
   sticker: "מדבקה",
   magnet: "מגנט",
-  tattoo: "טטו זמני",
+  tattoo: "קעקוע זמני",
 };
 
 /** Plural Hebrew product names. */
 export const PRODUCT_LABELS_HE_PLURAL: Record<ProductType, string> = {
   sticker: "מדבקות",
   magnet: "מגנטים",
-  tattoo: "טטו זמני",
+  tattoo: "קעקועים זמניים",
 };
 
 // --- Lookups --------------------------------------------------------------

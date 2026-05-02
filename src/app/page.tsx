@@ -73,7 +73,7 @@ export default function Home() {
             <span className="text-emerald-300">והעור</span>
           </h1>
           <p className="text-lg text-zinc-100/95 drop-shadow">
-            שולחים תמונה או סטיקר. בוחרים: מדבקה, מגנט, או טטו זמני. מקבלים עד הבית.
+            שולחים תמונה או סטיקר. בוחרים: מדבקה, מגנט, או קעקוע זמני. מקבלים עד הבית.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export default function Home() {
           {[
             { he: "מדבקות", sub: "ויניל מט · עמיד למים" },
             { he: "מגנטים", sub: "למקרר · ללוח · לארון" },
-            { he: "טטו זמני", sub: "לעור · 3-5 ימים" },
+            { he: "קעקוע זמני", sub: "לעור · 3-5 ימים" },
           ].map((p) => (
             <li
               key={p.he}
