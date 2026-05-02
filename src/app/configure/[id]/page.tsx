@@ -122,7 +122,7 @@ export default function ConfigurePage({
       quantity,
     });
     if (opts.thenGo === "cart") router.push("/cart");
-    else router.push("/");
+    else router.push("/?continue=1");
   }
 
   if (!session) {

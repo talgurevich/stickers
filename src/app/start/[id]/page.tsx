@@ -138,9 +138,7 @@ export default function StartPage({
   const formattedPhone = servicePhone
     ? `+${servicePhone.replace(/(\d{3})(\d{2})(\d{3})(\d{4})/, "$1 $2 $3 $4")}`
     : null;
-  const waLink = servicePhone
-    ? `https://wa.me/${servicePhone}?text=${encodeURIComponent("מצרפ.ת תמונה")}`
-    : "#";
+  const waLink = servicePhone ? `https://wa.me/${servicePhone}` : "#";
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-12">

@@ -10,12 +10,11 @@ import {
 } from "@/lib/prodigi-catalog";
 import { formatIls } from "@/lib/pricing";
 import { getBrowserClient } from "@/lib/supabase-browser";
-
-// Persist the phone client-side so navigating away from /account (e.g. to
-// /cart and back) doesn't dump the user back at the login form. The phone
-// itself isn't sensitive — it's the id we use everywhere — but offer a
-// logout button so people on shared devices can wipe it.
-const ACCOUNT_PHONE_KEY = "wallaura.account.phone.v1";
+import {
+  clearStoredPhone,
+  getStoredPhone,
+  setStoredPhone,
+} from "@/lib/account-phone";
 
 type OrderView = {
   id: string;
@@ -105,11 +104,7 @@ export default function AccountPage() {
 
         // Persist for next visit. Stored phone is whatever the user typed
         // — server normalizes again on POST so format doesn't matter here.
-        try {
-          window.localStorage.setItem(ACCOUNT_PHONE_KEY, phoneToUse);
-        } catch {
-          /* no-op (private mode etc.) */
-        }
+        setStoredPhone(phoneToUse);
 
         // If the orphan sweep just attached an image, jump straight to /configure.
         if (sessionJson.orphanAdopted) {
@@ -133,11 +128,7 @@ export default function AccountPage() {
   }
 
   function logOut() {
-    try {
-      window.localStorage.removeItem(ACCOUNT_PHONE_KEY);
-    } catch {
-      /* no-op */
-    }
+    clearStoredPhone();
     setPhone("");
     setPhoneSubmitted(false);
     setOpenSession(null);
@@ -148,12 +139,7 @@ export default function AccountPage() {
   // their account across navigations (e.g. /account → /cart → /account).
   useEffect(() => {
     let alive = true;
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(ACCOUNT_PHONE_KEY);
-    } catch {
-      /* no-op */
-    }
+    const stored = getStoredPhone();
     if (!stored) return;
     // Syncing React state with localStorage on mount — the rule's preferred
     // alternatives (move to render, use useSyncExternalStore) don't fit a
@@ -194,7 +180,7 @@ export default function AccountPage() {
     ? `+${servicePhone.replace(/(\d{3})(\d{2})(\d{3})(\d{4})/, "$1 $2 $3 $4")}`
     : null;
   const waLink = servicePhone
-    ? `https://wa.me/${servicePhone}?text=${encodeURIComponent("מצרפ.ת מדבקה")}`
+    ? `https://wa.me/${servicePhone}`
     : "#";
 
   return (

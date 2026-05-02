@@ -223,7 +223,7 @@ export default function CartPage() {
           </ul>
 
           <Link
-            href="/"
+            href="/?continue=1"
             className="inline-block text-sm text-emerald-700 hover:underline dark:text-emerald-400"
           >
             + הוספת פריט נוסף
