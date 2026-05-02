@@ -207,12 +207,12 @@ export default function StartPage({
       <div className="w-full max-w-md space-y-8 text-center">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">
-            {hasInbox ? "בחרו תמונה להדפסה" : "שלחו לנו את התמונה"}
+            {hasInbox ? "בחרו סטיקר להדפסה" : "שלחו לנו את הסטיקר"}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {hasInbox
-              ? "כל התמונות ששלחת הופיעו כאן. הקליקו על אחת כדי להמשיך, או שלחו עוד בוואטסאפ."
-              : "פותחים וואטסאפ ושולחים סטיקר או תמונה למספר השירות. אפשר לשלוח כמה תמונות — כולן יופיעו כאן."}
+              ? "כל הסטיקרים ששלחת הופיעו כאן. הקליקו על אחד כדי להמשיך, או שלחו עוד בוואטסאפ."
+              : "פותחים וואטסאפ ושולחים את הסטיקר למספר השירות. אפשר לשלוח כמה סטיקרים — כולם יופיעו כאן."}
           </p>
         </div>
 
@@ -257,7 +257,7 @@ export default function StartPage({
         >
           <div className="text-4xl">📱</div>
           <div className="mt-2 text-base font-bold">
-            {hasInbox ? "לשלוח עוד תמונה" : "פתחו וואטסאפ"}
+            {hasInbox ? "לשלוח עוד סטיקר" : "פתחו וואטסאפ"}
           </div>
           {formattedPhone && (
             <div
@@ -268,14 +268,14 @@ export default function StartPage({
             </div>
           )}
           <div className="mt-2 text-xs text-zinc-500">
-            שלחו את התמונה ממספר הטלפון שאיתו פתחתם את ההזמנה.
+            שלחו את הסטיקר ממספר הטלפון שאיתו פתחתם את ההזמנה.
           </div>
         </a>
 
         {!hasInbox && (
           <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-            ממתין לתמונה...
+            ממתין לסטיקר...
           </div>
         )}
 
