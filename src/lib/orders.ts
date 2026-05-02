@@ -10,8 +10,9 @@
 import { serverClient, STORAGE_BUCKET } from "./supabase";
 import { createOrder as prodigiCreateOrder, ProdigiError } from "./prodigi";
 import {
-  STICKER_VARIANTS,
-  isStickerSize,
+  isProductType,
+  variantFor,
+  type ProductType,
   type StickerSize,
 } from "./prodigi-catalog";
 
@@ -26,11 +27,16 @@ export type OrderRow = {
   image_url: string;
   print_image_url: string;
   /**
-   * Re-purposed: stores the Prodigi sticker size key ("small" | "medium" | "large" | "xlarge").
-   * The column was originally an int sized to Printful's 50/70/100 mm options;
+   * Re-purposed: stores the Prodigi size key for the row's product_type.
+   * For stickers: "small" | "medium" | "large" | "xlarge".
+   * For magnets: "small" | "large".
+   * For tattoos: "s" | "m" | "l".
+   * Column was originally an int sized to Printful's 50/70/100 mm options;
    * the check constraint was dropped in 0003_prodigi_sizes.sql.
    */
   size_mm: StickerSize | string;
+  /** Product line — added in migration 0006. Defaults to 'sticker' for legacy rows. */
+  product_type: ProductType;
   cut_type: string;
   quantity: number;
   shipping_address: {
@@ -201,10 +207,13 @@ export async function submitCartForPrinting(
 
   const items = [];
   for (const row of rows) {
-    if (!isStickerSize(row.size_mm)) {
-      return { kind: "no-variant", size: String(row.size_mm) };
+    const productType: ProductType = isProductType(row.product_type)
+      ? row.product_type
+      : "sticker";
+    const variant = variantFor(productType, row.size_mm);
+    if (!variant) {
+      return { kind: "no-variant", size: `${productType}/${row.size_mm}` };
     }
-    const variant = STICKER_VARIANTS[row.size_mm];
     const printFileUrl = await signPrintFile(row);
     items.push({
       sku: variant.sku,
@@ -271,10 +280,13 @@ export async function submitOrderForPrinting(
     };
   }
 
-  if (!isStickerSize(order.size_mm)) {
-    return { kind: "no-variant", size: String(order.size_mm) };
+  const productType: ProductType = isProductType(order.product_type)
+    ? order.product_type
+    : "sticker";
+  const variant = variantFor(productType, order.size_mm);
+  if (!variant) {
+    return { kind: "no-variant", size: `${productType}/${order.size_mm}` };
   }
-  const variant = STICKER_VARIANTS[order.size_mm];
 
   const printFileUrl = await signPrintFile(order);
   const a = order.shipping_address;

@@ -4,7 +4,7 @@ export const metadata = {
   title: "Terms of Service · Wallaura",
 };
 
-const LAST_UPDATED = "2026-04-30";
+const LAST_UPDATED = "2026-05-02";
 const CONTACT_EMAIL = "tal.gurevich2@gmail.com";
 
 export default function TermsPage() {
@@ -26,10 +26,11 @@ export default function TermsPage() {
       <section className="prose prose-sm mt-8 max-w-none space-y-6 dark:prose-invert">
         <h2 className="text-lg font-semibold">1. The service</h2>
         <p>
-          Wallaura turns stickers from a customer&apos;s WhatsApp library (or
-          another image they own) into physical printed stickers, fulfilled
-          and shipped through a third-party print provider (currently Prodigi,
-          based in the UK / EU).
+          Wallaura turns images from a customer&apos;s WhatsApp library (or
+          another image they own) into physical printed products — currently
+          kiss-cut vinyl stickers, photo magnets, and temporary skin tattoos
+          — fulfilled and shipped through a third-party print provider
+          (currently Prodigi, based in the UK).
         </p>
 
         <h2 className="text-lg font-semibold">2. Eligibility</h2>
@@ -79,10 +80,24 @@ export default function TermsPage() {
 
         <h2 className="text-lg font-semibold">6. Fulfillment and shipping</h2>
         <p>
-          Stickers are printed and shipped by our fulfillment partner. Typical
+          Items are printed and shipped by our fulfillment partner. Typical
           shipping time to Israel is 7–14 business days from the day the order
           enters production. Shipping addresses outside Israel are not
           supported in the current version of the service.
+        </p>
+
+        <h2 className="text-lg font-semibold">6a. Temporary tattoos &mdash; safety notice</h2>
+        <p>
+          Temporary tattoos are intended for short-term application to clean,
+          unbroken adult skin. Recommended for ages 3 and up. Do not apply to
+          irritated, sunburned, or sensitive skin, near the eyes, or on areas
+          treated with cosmetics, oils, or moisturizers within the prior hour.
+          As with any cosmetic product, a patch test is recommended for
+          first-time use; discontinue use and rinse thoroughly with soap and
+          water if any redness, itching, or irritation occurs. Wallaura is not
+          liable for skin reactions or allergic responses; the manufacturer&apos;s
+          ingredient list and instructions accompany each shipment and govern
+          safe use.
         </p>
 
         <h2 className="text-lg font-semibold">7. Cancellations, returns, refunds</h2>

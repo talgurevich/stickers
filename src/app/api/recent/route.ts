@@ -14,7 +14,7 @@ export async function GET() {
   const sb = serverClient();
   const { data, error } = await sb
     .from("orders")
-    .select("id, image_url, size_mm, created_at")
+    .select("id, image_url, product_type, size_mm, created_at")
     .not("printful_order_id", "is", null)
     .eq("display_publicly", true)
     .order("created_at", { ascending: false })
@@ -35,6 +35,9 @@ export async function GET() {
       return {
         id: r.id, // Internal — not displayed to user. Used as React key only.
         thumbUrl,
+        productType:
+          ((r as { product_type?: string }).product_type as string | undefined) ??
+          "sticker",
         size: r.size_mm as string,
         createdAt: r.created_at,
       };

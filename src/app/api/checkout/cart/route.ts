@@ -10,7 +10,11 @@ import { priceForCart } from "@/lib/pricing";
 import { generatePaymentLink, PayPlusError } from "@/lib/payplus";
 import { env } from "@/lib/env";
 import { serverClient, STORAGE_BUCKET } from "@/lib/supabase";
-import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
+import {
+  isProductType,
+  isSizeForProduct,
+  type ProductType,
+} from "@/lib/prodigi-catalog";
 import {
   markCartPaid,
   submitCartForPrinting,
@@ -33,7 +37,8 @@ type Address = {
 type CartItem = {
   sessionId: string;
   imagePath?: string; // optional client hint; we re-resolve from session
-  size: StickerSize;
+  productType?: ProductType; // optional for legacy clients (defaults to sticker)
+  size: string;
   quantity: number;
 };
 
@@ -73,14 +78,18 @@ export async function POST(req: Request) {
     sessionId: string | null;
     phoneE164: string | null;
     imagePath: string;
-    size: StickerSize;
+    productType: ProductType;
+    size: string;
     quantity: number;
   };
   const resolved: Resolved[] = [];
   for (const it of items) {
-    if (!isStickerSize(it.size)) {
+    const productType: ProductType = isProductType(it.productType)
+      ? it.productType
+      : "sticker";
+    if (!isSizeForProduct(productType, it.size)) {
       return NextResponse.json(
-        { error: `invalid-size:${it.size}` },
+        { error: `invalid-size:${productType}/${it.size}` },
         { status: 400 },
       );
     }
@@ -102,6 +111,7 @@ export async function POST(req: Request) {
       sessionId: session?.id ?? null,
       phoneE164: session?.phoneE164 ?? null,
       imagePath,
+      productType,
       size: it.size,
       quantity: it.quantity,
     });
@@ -114,7 +124,11 @@ export async function POST(req: Request) {
     resolved.find((r) => r.phoneE164)?.phoneE164 ?? "0000000000";
 
   const price = priceForCart(
-    resolved.map((r) => ({ size: r.size, quantity: r.quantity })),
+    resolved.map((r) => ({
+      productType: r.productType,
+      size: r.size,
+      quantity: r.quantity,
+    })),
   );
 
   const cartId = randomUUID();
@@ -137,6 +151,7 @@ export async function POST(req: Request) {
       image_url: r.imagePath,
       print_image_url: r.imagePath,
       size_mm: r.size,
+      product_type: r.productType,
       cut_type: "kiss_cut",
       quantity: r.quantity,
       shipping_address: address,
@@ -178,10 +193,20 @@ export async function POST(req: Request) {
     }
 
     const totalQuantity = resolved.reduce((n, r) => n + r.quantity, 0);
+    // Mixed cart: if all lines share the same product type, show that
+    // type; otherwise mark the order as "mixed" so the email copy uses
+    // generic wording ("המוצרים").
+    const productTypes = new Set(resolved.map((r) => r.productType));
+    const cartProductType: ProductType | "mixed" =
+      productTypes.size === 1
+        ? (resolved[0].productType as ProductType)
+        : "mixed";
+
     const customerEmailResult = address.email
       ? await sendOrderConfirmation({
           to: address.email,
           orderId: cartId,
+          productType: cartProductType,
           size: resolved.length === 1 ? resolved[0].size : "mixed",
           quantity: totalQuantity,
           totalAgorot: price.totalAgorot,
@@ -193,6 +218,7 @@ export async function POST(req: Request) {
 
     const ownerEmailResult = await sendOwnerOrderNotification({
       orderId: cartId,
+      productType: cartProductType,
       size: resolved.length === 1 ? resolved[0].size : `mixed (${resolved.length} items)`,
       quantity: totalQuantity,
       totalAgorot: price.totalAgorot,

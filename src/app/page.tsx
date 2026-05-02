@@ -69,14 +69,31 @@ export default function Home() {
 
         <div className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-lg sm:text-4xl">
-            המדבקות מהוואטסאפ שלך,{" "}
-            <span className="text-emerald-300">מודפסות אצלך בבית</span>
+            מהוואטסאפ אל הקיר, המקרר,{" "}
+            <span className="text-emerald-300">והעור</span>
           </h1>
           <p className="text-lg text-zinc-100/95 drop-shadow">
-            שולחים סטיקר מהוואטסאפ או בוחרים מהמדבקות הקודמות שלכם, מקבלים
-            מדבקות אמיתיות עד הבית.
+            שולחים תמונה או סטיקר. בוחרים: מדבקה, מגנט, או טטו זמני. מקבלים עד הבית.
           </p>
         </div>
+
+        <ul className="grid grid-cols-3 gap-2 text-xs sm:gap-3 sm:text-sm">
+          {[
+            { he: "מדבקות", sub: "ויניל מט · עמיד למים" },
+            { he: "מגנטים", sub: "למקרר · ללוח · לארון" },
+            { he: "טטו זמני", sub: "לעור · 3-5 ימים" },
+          ].map((p) => (
+            <li
+              key={p.he}
+              className="rounded-xl border border-white/30 bg-white/10 px-2 py-3 text-white backdrop-blur-sm sm:px-3"
+            >
+              <div className="font-bold">{p.he}</div>
+              <div className="mt-0.5 text-[11px] text-zinc-200/90 sm:text-xs">
+                {p.sub}
+              </div>
+            </li>
+          ))}
+        </ul>
 
         <form
           onSubmit={start}

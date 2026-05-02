@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { STICKER_VARIANTS, isStickerSize } from "@/lib/prodigi-catalog";
+import {
+  PRODUCT_LABELS_HE,
+  isProductType,
+  variantFor,
+} from "@/lib/prodigi-catalog";
 import { formatIls } from "@/lib/pricing";
 import { getBrowserClient } from "@/lib/supabase-browser";
 
@@ -15,6 +19,7 @@ const ACCOUNT_PHONE_KEY = "wallaura.account.phone.v1";
 
 type OrderView = {
   id: string;
+  productType?: string;
   size: string;
   quantity: number;
   totalAgorot: number;
@@ -282,14 +287,15 @@ export default function AccountPage() {
 
             {orders && orders.length === 0 ? (
               <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
-                אין עדיין הזמנות במספר הזה. שלחו את הסטיקר הראשון בוואטסאפ.
+                אין עדיין הזמנות במספר הזה. שלחו את התמונה הראשונה בוואטסאפ.
               </div>
             ) : (
               <ul className="space-y-3">
                 {orders?.map((o) => {
-                  const variant = isStickerSize(o.size)
-                    ? STICKER_VARIANTS[o.size]
-                    : null;
+                  const productType = isProductType(o.productType)
+                    ? o.productType
+                    : "sticker";
+                  const variant = variantFor(productType, o.size);
                   return (
                     <li
                       key={o.id}
@@ -307,7 +313,9 @@ export default function AccountPage() {
                       )}
                       <div className="flex-1 text-right">
                         <div className="text-sm font-bold">
-                          {variant?.labelHe ?? o.size} · ×{o.quantity}
+                          {PRODUCT_LABELS_HE[productType]}
+                          {variant ? ` · ${variant.labelHe}` : ` · ${o.size}`}{" "}
+                          · ×{o.quantity}
                         </div>
                         <div className="text-xs text-zinc-500">
                           {new Date(o.createdAt).toLocaleString("he-IL")} ·{" "}

@@ -7,7 +7,12 @@
 // step for MJML / templating libs. Hebrew copy with `dir="rtl"` on the body.
 
 import { Resend } from "resend";
-import { STICKER_VARIANTS, isStickerSize } from "./prodigi-catalog";
+import {
+  PRODUCT_LABELS_HE_PLURAL,
+  isProductType,
+  variantFor,
+  type ProductType,
+} from "./prodigi-catalog";
 import { formatIls } from "./pricing";
 
 let _client: Resend | null = null;
@@ -72,7 +77,7 @@ function shell(title: string, body: string): string {
     ${body}
     <hr style="border:none;border-top:1px solid #e4e4e7;margin:32px 0;">
     <p style="font-size:12px;color:#71717a;text-align:center;">
-      Wallaura Stickers · המדבקות שלך מהוואטסאפ, מודפסות אצלך בבית
+      Wallaura · האמנות שלך מהוואטסאפ, מודפסת אצלך בבית
     </p>
   </div>
 </body>
@@ -82,6 +87,7 @@ function shell(title: string, body: string): string {
 export type OrderEmailInput = {
   to: string;
   orderId: string;
+  productType?: ProductType | "mixed";
   size: string;
   quantity: number;
   totalAgorot: number;
@@ -93,14 +99,24 @@ export type OrderEmailInput = {
 export async function sendOrderConfirmation(
   o: OrderEmailInput,
 ): Promise<SendResult> {
-  const variant = isStickerSize(o.size) ? STICKER_VARIANTS[o.size] : null;
+  const productType: ProductType | "mixed" = isProductType(o.productType)
+    ? o.productType
+    : o.productType === "mixed"
+      ? "mixed"
+      : "sticker";
+  const variant =
+    productType !== "mixed" ? variantFor(productType, o.size) : null;
   const sizeLabel = variant ? variant.labelHe : o.size;
+  const productLabelPlural =
+    productType === "mixed"
+      ? "המוצרים"
+      : PRODUCT_LABELS_HE_PLURAL[productType];
   const html = shell(
     "ההזמנה שלך התקבלה",
     `
     <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;">קיבלנו את ההזמנה ✓</h1>
     <p style="font-size:15px;line-height:1.6;color:#3f3f46;">
-      תודה! ההזמנה שלך נשלחה להדפסה. בעוד 7-14 ימי עסקים תקבל/י את המדבקות לכתובת שמסרת.
+      תודה! ההזמנה שלך נשלחה להדפסה. בעוד 7-14 ימי עסקים תקבל/י את ${productLabelPlural} לכתובת שמסרת.
     </p>
 
     ${
@@ -129,7 +145,7 @@ export async function sendOrderConfirmation(
     </table>
 
     <p style="font-size:13px;color:#71717a;line-height:1.6;">
-      נעדכן אותך בוואטסאפ ובמייל ברגע שהמדבקות יוצאות לדרך.
+      נעדכן אותך בוואטסאפ ובמייל ברגע ש${productLabelPlural} יוצאים לדרך.
     </p>
   `,
   );
@@ -140,6 +156,7 @@ export async function sendOrderConfirmation(
 
 export type OwnerOrderInput = {
   orderId: string;
+  productType?: ProductType | "mixed";
   size: string;
   quantity: number;
   totalAgorot: number;
@@ -159,12 +176,19 @@ export async function sendOwnerOrderNotification(
 ): Promise<SendResult> {
   const ownerEmail = process.env.OWNER_EMAIL;
   if (!ownerEmail) return { kind: "skipped", reason: "no-owner-email" };
-  const variant = isStickerSize(o.size) ? STICKER_VARIANTS[o.size] : null;
+  const productType: ProductType | "mixed" = isProductType(o.productType)
+    ? o.productType
+    : o.productType === "mixed"
+      ? "mixed"
+      : "sticker";
+  const variant =
+    productType !== "mixed" ? variantFor(productType, o.size) : null;
   const sizeLabel = variant ? variant.labelEn : o.size;
+  const productTag = productType === "mixed" ? "mixed" : productType;
   const html = `<!doctype html>
 <html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b;background:#fafaf9;">
   <div style="max-width:560px;margin:0 auto;padding:24px;">
-    <h2 style="margin:0 0 12px;">New order · ${sizeLabel} × ${o.quantity}</h2>
+    <h2 style="margin:0 0 12px;">New order · ${productTag} · ${sizeLabel} × ${o.quantity}</h2>
     <p style="font-size:14px;color:#3f3f46;margin:0 0 16px;">${formatIls(o.totalAgorot)} · order <code>${o.orderId}</code></p>
     ${o.imageUrl ? `<div style="margin:16px 0;"><img src="${o.imageUrl}" alt="" style="max-width:240px;border-radius:8px;border:1px solid #e4e4e7;"></div>` : ""}
     <table style="width:100%;border-collapse:collapse;font-size:13px;">

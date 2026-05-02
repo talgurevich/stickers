@@ -4,7 +4,11 @@ import { priceFor } from "@/lib/pricing";
 import { generatePaymentLink, PayPlusError } from "@/lib/payplus";
 import { env } from "@/lib/env";
 import { serverClient } from "@/lib/supabase";
-import { isStickerSize, type StickerSize } from "@/lib/prodigi-catalog";
+import {
+  isProductType,
+  isSizeForProduct,
+  type ProductType,
+} from "@/lib/prodigi-catalog";
 import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
 import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
 import { STORAGE_BUCKET } from "@/lib/supabase";
@@ -12,7 +16,8 @@ import { STORAGE_BUCKET } from "@/lib/supabase";
 export const runtime = "nodejs";
 
 type CheckoutBody = {
-  size: StickerSize;
+  productType?: ProductType;
+  size: string;
   quantity: number;
   address: {
     name: string;
@@ -43,12 +48,15 @@ export async function POST(
     return NextResponse.json({ error: "bad-json" }, { status: 400 });
   }
   const { size, quantity, address } = body;
+  const productType: ProductType = isProductType(body.productType)
+    ? body.productType
+    : "sticker";
   // Default to opt-in (true) — matches the unchecked-to-opt-out checkbox UX.
   const displayPublicly = body.displayPublicly !== false;
   if (!size || !quantity) {
     return NextResponse.json({ error: "config-incomplete" }, { status: 400 });
   }
-  if (!isStickerSize(size)) {
+  if (!isSizeForProduct(productType, size)) {
     return NextResponse.json({ error: "invalid-size" }, { status: 400 });
   }
   if (quantity < 1 || quantity > 50) {
@@ -61,7 +69,7 @@ export async function POST(
     return NextResponse.json({ error: "image-missing" }, { status: 400 });
   }
 
-  const price = priceFor(size, quantity);
+  const price = priceFor(productType, size, quantity);
 
   // Persist the order row up-front. Print pipeline picks this up after
   // payment (or immediately, in test mode).
@@ -75,6 +83,7 @@ export async function POST(
       image_url: session.imagePath,
       print_image_url: session.imagePath,
       size_mm: size,
+      product_type: productType,
       cut_type: "kiss_cut",
       quantity,
       shipping_address: address,
@@ -115,6 +124,7 @@ export async function POST(
       ? await sendOrderConfirmation({
           to: address.email,
           orderId: order.id,
+          productType,
           size,
           quantity,
           totalAgorot: price.totalAgorot,
@@ -128,6 +138,7 @@ export async function POST(
     // them in the Prodigi dashboard.
     const ownerEmailResult = await sendOwnerOrderNotification({
       orderId: order.id,
+      productType,
       size,
       quantity,
       totalAgorot: price.totalAgorot,

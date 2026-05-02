@@ -1,0 +1,817 @@
+{
+  "MAG-1-10X10": {
+    "1": {
+      "copies": 1,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 5.43,
+          "shippingUsd": 7.47,
+          "totalUsd": 12.9
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 5.43,
+          "shippingUsd": 43.38,
+          "totalUsd": 48.81
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 5.43,
+          "shippingUsd": 43.38,
+          "totalUsd": 48.81
+        }
+      ]
+    },
+    "2": {
+      "copies": 2,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 10.86,
+          "shippingUsd": 7.47,
+          "totalUsd": 18.33
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 10.86,
+          "shippingUsd": 43.38,
+          "totalUsd": 54.24
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 10.86,
+          "shippingUsd": 43.38,
+          "totalUsd": 54.24
+        }
+      ]
+    },
+    "3": {
+      "copies": 3,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 16.29,
+          "shippingUsd": 7.47,
+          "totalUsd": 23.76
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 16.29,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.67
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 16.29,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.67
+        }
+      ]
+    },
+    "5": {
+      "copies": 5,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 27.15,
+          "shippingUsd": 7.47,
+          "totalUsd": 34.62
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 27.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 70.53
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 27.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 70.53
+        }
+      ]
+    },
+    "10": {
+      "copies": 10,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 54.3,
+          "shippingUsd": 7.47,
+          "totalUsd": 61.77
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 54.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 97.68
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 54.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 97.68
+        }
+      ]
+    },
+    "20": {
+      "copies": 20,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 108.6,
+          "shippingUsd": 7.47,
+          "totalUsd": 116.07
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 108.6,
+          "shippingUsd": 43.38,
+          "totalUsd": 151.98
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 108.6,
+          "shippingUsd": 43.38,
+          "totalUsd": 151.98
+        }
+      ]
+    },
+    "50": {
+      "copies": 50,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 271.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 278.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 271.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 314.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 271.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 314.88
+        }
+      ]
+    }
+  },
+  "MAG-1-15X15": {
+    "1": {
+      "copies": 1,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 8.15,
+          "shippingUsd": 7.47,
+          "totalUsd": 15.62
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 8.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.53
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 8.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.53
+        }
+      ]
+    },
+    "2": {
+      "copies": 2,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 16.3,
+          "shippingUsd": 7.47,
+          "totalUsd": 23.77
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 16.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.68
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 16.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.68
+        }
+      ]
+    },
+    "3": {
+      "copies": 3,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 24.45,
+          "shippingUsd": 7.47,
+          "totalUsd": 31.92
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 24.45,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.83
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 24.45,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.83
+        }
+      ]
+    },
+    "5": {
+      "copies": 5,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 40.75,
+          "shippingUsd": 7.47,
+          "totalUsd": 48.22
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 40.75,
+          "shippingUsd": 43.38,
+          "totalUsd": 84.13
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 40.75,
+          "shippingUsd": 43.38,
+          "totalUsd": 84.13
+        }
+      ]
+    },
+    "10": {
+      "copies": 10,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 81.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 88.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 81.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 124.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 81.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 124.88
+        }
+      ]
+    },
+    "20": {
+      "copies": 20,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 163,
+          "shippingUsd": 7.47,
+          "totalUsd": 170.47
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 163,
+          "shippingUsd": 43.38,
+          "totalUsd": 206.38
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 163,
+          "shippingUsd": 43.38,
+          "totalUsd": 206.38
+        }
+      ]
+    },
+    "50": {
+      "copies": 50,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 407.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 414.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 407.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 450.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 407.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 450.88
+        }
+      ]
+    }
+  },
+  "GLOBAL-TATT-S": {
+    "1": {
+      "copies": 1,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 4.01,
+          "shippingUsd": 7.47,
+          "totalUsd": 11.48
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 4.01,
+          "shippingUsd": 43.38,
+          "totalUsd": 47.39
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 4.01,
+          "shippingUsd": 43.38,
+          "totalUsd": 47.39
+        }
+      ]
+    },
+    "2": {
+      "copies": 2,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 8.02,
+          "shippingUsd": 7.47,
+          "totalUsd": 15.49
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 8.02,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.4
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 8.02,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.4
+        }
+      ]
+    },
+    "3": {
+      "copies": 3,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 12.03,
+          "shippingUsd": 7.47,
+          "totalUsd": 19.5
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 12.03,
+          "shippingUsd": 43.38,
+          "totalUsd": 55.41
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 12.03,
+          "shippingUsd": 43.38,
+          "totalUsd": 55.41
+        }
+      ]
+    },
+    "5": {
+      "copies": 5,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 20.05,
+          "shippingUsd": 7.47,
+          "totalUsd": 27.52
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 20.05,
+          "shippingUsd": 43.38,
+          "totalUsd": 63.43
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 20.05,
+          "shippingUsd": 43.38,
+          "totalUsd": 63.43
+        }
+      ]
+    },
+    "10": {
+      "copies": 10,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 40.1,
+          "shippingUsd": 7.47,
+          "totalUsd": 47.57
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 40.1,
+          "shippingUsd": 43.38,
+          "totalUsd": 83.48
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 40.1,
+          "shippingUsd": 43.38,
+          "totalUsd": 83.48
+        }
+      ]
+    },
+    "20": {
+      "copies": 20,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 80.2,
+          "shippingUsd": 7.47,
+          "totalUsd": 87.67
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 80.2,
+          "shippingUsd": 43.38,
+          "totalUsd": 123.58
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 80.2,
+          "shippingUsd": 43.38,
+          "totalUsd": 123.58
+        }
+      ]
+    },
+    "50": {
+      "copies": 50,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 200.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 207.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 200.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 243.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 200.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 243.88
+        }
+      ]
+    }
+  },
+  "GLOBAL-TATT-M": {
+    "1": {
+      "copies": 1,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 8.08,
+          "shippingUsd": 7.47,
+          "totalUsd": 15.55
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 8.08,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.46
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 8.08,
+          "shippingUsd": 43.38,
+          "totalUsd": 51.46
+        }
+      ]
+    },
+    "2": {
+      "copies": 2,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 16.16,
+          "shippingUsd": 7.47,
+          "totalUsd": 23.63
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 16.16,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.54
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 16.16,
+          "shippingUsd": 43.38,
+          "totalUsd": 59.54
+        }
+      ]
+    },
+    "3": {
+      "copies": 3,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 24.24,
+          "shippingUsd": 7.47,
+          "totalUsd": 31.71
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 24.24,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.62
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 24.24,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.62
+        }
+      ]
+    },
+    "5": {
+      "copies": 5,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 40.4,
+          "shippingUsd": 7.47,
+          "totalUsd": 47.87
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 40.4,
+          "shippingUsd": 43.38,
+          "totalUsd": 83.78
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 40.4,
+          "shippingUsd": 43.38,
+          "totalUsd": 83.78
+        }
+      ]
+    },
+    "10": {
+      "copies": 10,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 80.8,
+          "shippingUsd": 7.47,
+          "totalUsd": 88.27
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 80.8,
+          "shippingUsd": 43.38,
+          "totalUsd": 124.18
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 80.8,
+          "shippingUsd": 43.38,
+          "totalUsd": 124.18
+        }
+      ]
+    },
+    "20": {
+      "copies": 20,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 161.6,
+          "shippingUsd": 7.47,
+          "totalUsd": 169.07
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 161.6,
+          "shippingUsd": 43.38,
+          "totalUsd": 204.98
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 161.6,
+          "shippingUsd": 43.38,
+          "totalUsd": 204.98
+        }
+      ]
+    },
+    "50": {
+      "copies": 50,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 404,
+          "shippingUsd": 7.47,
+          "totalUsd": 411.47
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 404,
+          "shippingUsd": 43.38,
+          "totalUsd": 447.38
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 404,
+          "shippingUsd": 43.38,
+          "totalUsd": 447.38
+        }
+      ]
+    }
+  },
+  "GLOBAL-TATT-L": {
+    "1": {
+      "copies": 1,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 12.15,
+          "shippingUsd": 7.47,
+          "totalUsd": 19.62
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 12.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 55.53
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 12.15,
+          "shippingUsd": 43.38,
+          "totalUsd": 55.53
+        }
+      ]
+    },
+    "2": {
+      "copies": 2,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 24.3,
+          "shippingUsd": 7.47,
+          "totalUsd": 31.77
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 24.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.68
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 24.3,
+          "shippingUsd": 43.38,
+          "totalUsd": 67.68
+        }
+      ]
+    },
+    "3": {
+      "copies": 3,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 36.45,
+          "shippingUsd": 7.47,
+          "totalUsd": 43.92
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 36.45,
+          "shippingUsd": 43.38,
+          "totalUsd": 79.83
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 36.45,
+          "shippingUsd": 43.38,
+          "totalUsd": 79.83
+        }
+      ]
+    },
+    "5": {
+      "copies": 5,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 60.75,
+          "shippingUsd": 7.47,
+          "totalUsd": 68.22
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 60.75,
+          "shippingUsd": 43.38,
+          "totalUsd": 104.13
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 60.75,
+          "shippingUsd": 43.38,
+          "totalUsd": 104.13
+        }
+      ]
+    },
+    "10": {
+      "copies": 10,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 121.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 128.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 121.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 164.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 121.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 164.88
+        }
+      ]
+    },
+    "20": {
+      "copies": 20,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 243,
+          "shippingUsd": 7.47,
+          "totalUsd": 250.47
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 243,
+          "shippingUsd": 43.38,
+          "totalUsd": 286.38
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 243,
+          "shippingUsd": 43.38,
+          "totalUsd": 286.38
+        }
+      ]
+    },
+    "50": {
+      "copies": 50,
+      "quotes": [
+        {
+          "method": "Budget",
+          "itemsUsd": 607.5,
+          "shippingUsd": 7.47,
+          "totalUsd": 614.97
+        },
+        {
+          "method": "Standard",
+          "itemsUsd": 607.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 650.88
+        },
+        {
+          "method": "Express",
+          "itemsUsd": 607.5,
+          "shippingUsd": 43.38,
+          "totalUsd": 650.88
+        }
+      ]
+    }
+  }
+}

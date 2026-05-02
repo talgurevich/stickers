@@ -10,7 +10,7 @@ import {
   useHasMounted,
 } from "@/lib/cart";
 import { formatIls, priceForCart, type CartPriceBreakdown } from "@/lib/pricing";
-import { STICKER_VARIANTS } from "@/lib/prodigi-catalog";
+import { variantFor, PRODUCT_LABELS_HE } from "@/lib/prodigi-catalog";
 
 type Address = {
   name: string;
@@ -42,7 +42,11 @@ export default function CartPage() {
   try {
     if (cart.items.length > 0) {
       price = priceForCart(
-        cart.items.map((i) => ({ size: i.size, quantity: i.quantity })),
+        cart.items.map((i) => ({
+          productType: i.productType,
+          size: i.size,
+          quantity: i.quantity,
+        })),
       );
     }
   } catch {
@@ -61,6 +65,7 @@ export default function CartPage() {
           items: cart.items.map((i) => ({
             sessionId: i.sessionId,
             imagePath: i.imagePath,
+            productType: i.productType,
             size: i.size,
             quantity: i.quantity,
           })),
@@ -96,13 +101,13 @@ export default function CartPage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
         <h1 className="mb-4 text-3xl font-bold">הסל ריק</h1>
         <p className="mb-6 text-sm text-zinc-500">
-          הוסיפו מדבקות כדי לראות אותן כאן. כל המדבקות נשלחות במשלוח אחד.
+          הוסיפו פריטים כדי לראות אותם כאן. כל הפריטים נשלחים במשלוח אחד.
         </p>
         <Link
           href="/"
           className="inline-flex h-12 items-center justify-center rounded-full bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
-          להוספת מדבקה
+          להוספת פריט
         </Link>
       </main>
     );
@@ -122,13 +127,17 @@ export default function CartPage() {
         <section className="space-y-4">
           <ul className="space-y-3">
             {cart.items.map((item) => {
-              const variant = STICKER_VARIANTS[item.size];
+              const variant = variantFor(item.productType, item.size);
               const lineProduct = price?.lines.find(
-                (l) => l.size === item.size && l.quantity === item.quantity,
+                (l) =>
+                  l.productType === item.productType &&
+                  l.size === item.size &&
+                  l.quantity === item.quantity,
               );
+              const productLabel = PRODUCT_LABELS_HE[item.productType];
               return (
                 <li
-                  key={item.sessionId}
+                  key={`${item.sessionId}-${item.productType}`}
                   className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
                 >
                   {item.imageUrl ? (
@@ -142,11 +151,18 @@ export default function CartPage() {
                     <div className="h-20 w-20 shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium">{variant.labelHe}</div>
+                    <div className="font-medium">
+                      {productLabel}
+                      {variant ? ` · ${variant.labelHe}` : ""}
+                    </div>
                     <div className="mt-2 flex items-center gap-2">
                       <button
                         onClick={() =>
-                          updateQuantity(item.sessionId, item.quantity - 1)
+                          updateQuantity(
+                            item.sessionId,
+                            item.productType,
+                            item.quantity - 1,
+                          )
                         }
                         className="h-8 w-8 rounded-full border border-zinc-300 dark:border-zinc-700"
                       >
@@ -160,6 +176,7 @@ export default function CartPage() {
                         onChange={(e) =>
                           updateQuantity(
                             item.sessionId,
+                            item.productType,
                             Number(e.target.value) || 1,
                           )
                         }
@@ -168,7 +185,11 @@ export default function CartPage() {
                       />
                       <button
                         onClick={() =>
-                          updateQuantity(item.sessionId, item.quantity + 1)
+                          updateQuantity(
+                            item.sessionId,
+                            item.productType,
+                            item.quantity + 1,
+                          )
                         }
                         className="h-8 w-8 rounded-full border border-zinc-300 dark:border-zinc-700"
                       >
@@ -188,7 +209,9 @@ export default function CartPage() {
                       </div>
                     )}
                     <button
-                      onClick={() => removeItem(item.sessionId)}
+                      onClick={() =>
+                        removeItem(item.sessionId, item.productType)
+                      }
                       className="mt-1 text-xs text-red-600 hover:underline dark:text-red-400"
                     >
                       הסירו
@@ -203,7 +226,7 @@ export default function CartPage() {
             href="/"
             className="inline-block text-sm text-emerald-700 hover:underline dark:text-emerald-400"
           >
-            + הוספת מדבקה נוספת
+            + הוספת פריט נוסף
           </Link>
 
           <div>
@@ -286,7 +309,7 @@ export default function CartPage() {
             {price && (
               <dl className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-zinc-500">מדבקות</dt>
+                  <dt className="text-zinc-500">פריטים</dt>
                   <dd>
                     {price.productAgorot < price.productBeforeDiscountAgorot && (
                       <span className="me-2 text-xs text-zinc-400 line-through">

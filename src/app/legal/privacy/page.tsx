@@ -4,7 +4,7 @@ export const metadata = {
   title: "Privacy Policy · Wallaura",
 };
 
-const LAST_UPDATED = "2026-04-30";
+const LAST_UPDATED = "2026-05-02";
 const CONTACT_EMAIL = "tal.gurevich2@gmail.com";
 
 export default function PrivacyPage() {
@@ -30,13 +30,13 @@ export default function PrivacyPage() {
             format), name, shipping address, optional email address.
           </li>
           <li>
-            <strong>Order content:</strong> the sticker image you submit, the
-            size / quantity / cut you select, the price you paid, and any
-            free-text notes.
+            <strong>Order content:</strong> the image you submit, the product
+            type (sticker, magnet, or temporary tattoo), size, quantity, and
+            the price you paid, plus any free-text notes.
           </li>
           <li>
             <strong>WhatsApp messages:</strong> when you choose to send your
-            sticker via WhatsApp, the inbound message is processed by our
+            image via WhatsApp, the inbound message is processed by our
             messaging gateway and stored as part of your order. We do not
             initiate marketing messages on WhatsApp.
           </li>

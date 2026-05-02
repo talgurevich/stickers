@@ -11,9 +11,9 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "מדבקות וואטסאפ — הדפסה ומשלוח",
+  title: "Wallaura · הדפסה אישית מהוואטסאפ",
   description:
-    "הופכים את המדבקות מהוואטסאפ שלך למדבקות אמיתיות, מודפסות ונשלחות אליך הביתה.",
+    "התמונות והסטיקרים שלך מהוואטסאפ — מדבקות, מגנטים וטטו זמני. הדפסה ומשלוח עד הבית.",
 };
 
 export default function RootLayout({
