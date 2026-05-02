@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession } from "@/lib/sessions";
 import { sweepOrphansForSession } from "@/lib/whatsapp-ingest";
+import { notifyPhoneEntered } from "@/lib/slack";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
     const adopted = await sweepOrphansForSession({
       sessionId: session.id,
       phoneE164: phone,
+    });
+    void notifyPhoneEntered({
+      phone,
+      sessionId: session.id,
+      orphanAdopted: Boolean(adopted),
     });
     return NextResponse.json({
       id: session.id,

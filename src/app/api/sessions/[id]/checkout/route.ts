@@ -13,6 +13,7 @@ import { isSupportedCountry, type CountryCode } from "@/lib/countries";
 import { markOrderPaid, submitOrderForPrinting } from "@/lib/orders";
 import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
 import { STORAGE_BUCKET } from "@/lib/supabase";
+import { notifyCheckoutStarted } from "@/lib/slack";
 
 export const runtime = "nodejs";
 
@@ -111,11 +112,24 @@ export async function POST(
 
   await updateSessionStatus(session.id, "configuring");
   const appUrl = env.appUrl();
+  const isTestMode = process.env.PAYMENTS_ENABLED !== "true";
+
+  void notifyCheckoutStarted({
+    orderId: order.id,
+    phone: session.phoneE164,
+    email: address.email ?? null,
+    productType,
+    size,
+    quantity,
+    totalAgorot: price.totalAgorot,
+    country,
+    mode: isTestMode ? "test" : "live",
+  });
 
   // --- Test mode: PayPlus disabled. Mark paid + submit to Prodigi as a
   //     draft order, redirect to the order confirmation page. Flip
   //     PAYMENTS_ENABLED=true to re-enable the PayPlus path.
-  if (process.env.PAYMENTS_ENABLED !== "true") {
+  if (isTestMode) {
     await markOrderPaid(order.id, "test-mode");
     const submission = await submitOrderForPrinting(order.id);
 

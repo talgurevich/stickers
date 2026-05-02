@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { attachImage, getSession } from "@/lib/sessions";
+import { notifyPhotoUploaded } from "@/lib/slack";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,11 @@ export async function POST(
     if (!updated) {
       return NextResponse.json({ error: "session-not-found" }, { status: 404 });
     }
+    void notifyPhotoUploaded({
+      phone: updated.phoneE164,
+      sessionId: id,
+      imagePath: updated.imagePath ?? "(no path)",
+    });
     return NextResponse.json({ ok: true, imageUrl: updated.imageUrl });
   } catch (e) {
     return NextResponse.json(

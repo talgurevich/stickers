@@ -9,6 +9,7 @@
 
 import { serverClient, STORAGE_BUCKET } from "./supabase";
 import { createOrder as prodigiCreateOrder, ProdigiError } from "./prodigi";
+import { notifyPaymentCompleted } from "./slack";
 import {
   isProductType,
   variantFor,
@@ -59,6 +60,7 @@ export type OrderRow = {
   printful_status: string | null;
   shipped_at: string | null;
   tracking_url: string | null;
+  total_agorot: number;
 };
 
 export async function getOrder(id: string): Promise<OrderRow | null> {
@@ -74,17 +76,39 @@ export async function markOrderPaid(
   id: string,
   payplusTransactionId: string | null,
 ): Promise<OrderRow | null> {
-  const { data, error } = await serverClient()
+  // Filter on paid_at IS NULL so a second call (PayPlus retry, manual rerun)
+  // doesn't re-stamp paid_at — and lets us detect a real first-paid event
+  // for one-shot notifications.
+  const { data: justPaid } = await serverClient()
     .from("orders")
     .update({
       payplus_transaction_id: payplusTransactionId,
       paid_at: new Date().toISOString(),
     })
     .eq("id", id)
+    .is("paid_at", null)
     .select()
-    .single();
-  if (error || !data) return null;
-  return data as OrderRow;
+    .maybeSingle();
+
+  if (justPaid) {
+    const row = justPaid as OrderRow;
+    void notifyPaymentCompleted({
+      orderId: row.id,
+      phone: row.phone_e164,
+      email: row.email,
+      totalAgorot: row.total_agorot,
+      source: payplusTransactionId ?? "unknown",
+    });
+    return row;
+  }
+
+  // Already paid (or row missing) — return current state.
+  const { data } = await serverClient()
+    .from("orders")
+    .select()
+    .eq("id", id)
+    .maybeSingle();
+  return (data as OrderRow) ?? null;
 }
 
 async function signPrintFile(order: OrderRow): Promise<string> {
@@ -179,6 +203,8 @@ export async function markCartPaid(
   cartId: string,
   payplusTransactionId: string | null,
 ): Promise<OrderRow[]> {
+  // Same idempotency story as markOrderPaid — only rows that flipped from
+  // unpaid → paid this call come back, so Slack fires once per cart.
   const { data } = await serverClient()
     .from("orders")
     .update({
@@ -186,8 +212,29 @@ export async function markCartPaid(
       paid_at: new Date().toISOString(),
     })
     .eq("cart_id", cartId)
+    .is("paid_at", null)
     .select();
-  return (data as OrderRow[]) ?? [];
+
+  const justPaid = (data as OrderRow[]) ?? [];
+  if (justPaid.length > 0) {
+    const totalAgorot = justPaid.reduce((sum, r) => sum + (r.total_agorot ?? 0), 0);
+    const first = justPaid[0];
+    void notifyPaymentCompleted({
+      orderId: `cart:${cartId} (${justPaid.length} items)`,
+      phone: first.phone_e164,
+      email: first.email,
+      totalAgorot,
+      source: payplusTransactionId ?? "unknown",
+    });
+    return justPaid;
+  }
+
+  // Already paid (or empty) — return current cart state.
+  const { data: current } = await serverClient()
+    .from("orders")
+    .select()
+    .eq("cart_id", cartId);
+  return (current as OrderRow[]) ?? [];
 }
 
 /**

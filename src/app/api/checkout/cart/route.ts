@@ -22,6 +22,7 @@ import {
   getCartOrders,
 } from "@/lib/orders";
 import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
+import { notifyCheckoutStarted } from "@/lib/slack";
 
 export const runtime = "nodejs";
 
@@ -183,10 +184,29 @@ export async function POST(req: Request) {
   }
 
   const appUrl = env.appUrl();
+  const isTestMode = process.env.PAYMENTS_ENABLED !== "true";
+
+  const totalQuantityForNotice = resolved.reduce((n, r) => n + r.quantity, 0);
+  const productTypesForNotice = new Set(resolved.map((r) => r.productType));
+  const cartProductTypeForNotice =
+    productTypesForNotice.size === 1
+      ? resolved[0].productType
+      : "mixed";
+  void notifyCheckoutStarted({
+    orderId: `cart:${cartId} (${resolved.length} items)`,
+    phone: cartPhone,
+    email: address.email ?? null,
+    productType: cartProductTypeForNotice,
+    size: resolved.length === 1 ? resolved[0].size : "mixed",
+    quantity: totalQuantityForNotice,
+    totalAgorot: price.totalAgorot,
+    country,
+    mode: isTestMode ? "test" : "live",
+  });
 
   // --- Test mode: PayPlus disabled. Mark cart paid + submit single multi-
   //     item Prodigi draft, redirect to the cart confirmation page.
-  if (process.env.PAYMENTS_ENABLED !== "true") {
+  if (isTestMode) {
     await markCartPaid(cartId, "test-mode");
     const submission = await submitCartForPrinting(cartId);
 
