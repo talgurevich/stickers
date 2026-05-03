@@ -43,6 +43,10 @@ const TESTIMONIALS: { quote: string; byline: string }[] = [
       "זה עבד. המדבקה הגיעה. דבקה לקיר. אני לא יודע מה אתם רוצים שאומר.",
     byline: "רן, מהנדס",
   },
+  {
+    quote: "זה כל כך מטופש שזה גאוני.",
+    byline: "אלון, רמת השרון",
+  },
 ];
 
 export default function Home() {
