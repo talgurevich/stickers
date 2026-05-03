@@ -43,6 +43,53 @@ export default function CartPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [couponInput, setCouponInput] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponErr, setCouponErr] = useState<string | null>(null);
+  const [couponApplied, setCouponApplied] = useState<{
+    code: string;
+    discountPercent: number;
+  } | null>(null);
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponBusy(true);
+    setCouponErr(null);
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const j = await res.json();
+      if (!j.ok) {
+        setCouponApplied(null);
+        const msg =
+          j.reason === "exhausted"
+            ? "הקופון נוצל במלואו"
+            : j.reason === "expired"
+              ? "תוקף הקופון פג"
+              : j.reason === "inactive"
+                ? "הקופון לא פעיל"
+                : "קוד לא נמצא";
+        setCouponErr(msg);
+        return;
+      }
+      setCouponApplied(j.coupon);
+    } catch (e) {
+      setCouponErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCouponBusy(false);
+    }
+  }
+
+  function clearCoupon() {
+    setCouponApplied(null);
+    setCouponInput("");
+    setCouponErr(null);
+  }
+
   let price: CartPriceBreakdown | null = null;
   try {
     if (cart.items.length > 0) {
@@ -77,6 +124,7 @@ export default function CartPage() {
           })),
           address,
           displayPublicly,
+          couponCode: couponApplied?.code,
         }),
       });
       const j = await res.json();
@@ -369,12 +417,78 @@ export default function CartPage() {
                   <dt className="text-zinc-500">עמלה</dt>
                   <dd>{formatIls(price.handlingAgorot)}</dd>
                 </div>
+                {couponApplied && (
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                    <dt>קופון {couponApplied.code} (−{couponApplied.discountPercent}%)</dt>
+                    <dd>
+                      −
+                      {formatIls(
+                        Math.round(
+                          (price.totalAgorot * couponApplied.discountPercent) / 100,
+                        ),
+                      )}
+                    </dd>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 text-base font-bold">
                   <dt>סך הכל</dt>
-                  <dd>{formatIls(price.totalAgorot)}</dd>
+                  <dd>
+                    {formatIls(
+                      couponApplied
+                        ? price.totalAgorot -
+                            Math.round(
+                              (price.totalAgorot * couponApplied.discountPercent) / 100,
+                            )
+                        : price.totalAgorot,
+                    )}
+                  </dd>
                 </div>
               </dl>
             )}
+
+            <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              {couponApplied ? (
+                <div className="flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-950/40">
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    ✓ קופון {couponApplied.code} פעיל
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearCoupon}
+                    className="text-xs text-zinc-500 hover:underline"
+                  >
+                    הסירו
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyCoupon();
+                      }
+                    }}
+                    placeholder="קוד הנחה"
+                    className="h-10 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={couponBusy || !couponInput.trim()}
+                    className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  >
+                    {couponBusy ? "..." : "החל"}
+                  </button>
+                </div>
+              )}
+              {couponErr && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">{couponErr}</p>
+              )}
+            </div>
             <button
               onClick={pay}
               disabled={!canPay || busy}

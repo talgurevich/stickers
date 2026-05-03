@@ -23,6 +23,7 @@ import {
 } from "@/lib/orders";
 import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
 import { notifyCheckoutStarted } from "@/lib/slack";
+import { applyDiscount, redeemCoupon } from "@/lib/coupons";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,7 @@ type CartCheckoutBody = {
   items: CartItem[];
   address: Address;
   displayPublicly?: boolean;
+  couponCode?: string;
 };
 
 export async function POST(req: Request) {
@@ -141,6 +143,27 @@ export async function POST(req: Request) {
     country,
   );
 
+  // Coupon — atomically redeem (increments used_count) before we create the
+  // PayPlus link, so two simultaneous checkouts can't both squeeze past the
+  // last available use. If the user typed a code that's invalid/exhausted,
+  // fail the checkout — the UI should have warned them via /api/coupons/validate.
+  let couponCode: string | null = null;
+  let discountAgorot = 0;
+  let finalAgorot = price.totalAgorot;
+  if (body.couponCode) {
+    const redeem = await redeemCoupon(body.couponCode);
+    if (!redeem.ok) {
+      return NextResponse.json(
+        { error: `coupon-${redeem.reason}` },
+        { status: 400 },
+      );
+    }
+    couponCode = redeem.coupon.code;
+    const applied = applyDiscount(price.totalAgorot, redeem.coupon.discountPercent);
+    discountAgorot = applied.discountAgorot;
+    finalAgorot = applied.finalAgorot;
+  }
+
   const cartId = randomUUID();
   const sb = serverClient();
 
@@ -153,6 +176,9 @@ export async function POST(req: Request) {
     const isFirst = idx === 0;
     const lineShipping = isFirst ? price.shippingAgorot : 0;
     const lineHandling = isFirst ? price.handlingAgorot : 0;
+    // Discount + coupon code are stored on the first row only — same pattern
+    // as shipping/handling. Sum across rows = the actual paid amount.
+    const lineDiscount = isFirst ? discountAgorot : 0;
     return {
       cart_id: cartId,
       session_id: r.sessionId,
@@ -167,8 +193,10 @@ export async function POST(req: Request) {
       shipping_address: address,
       product_cost_agorot: lineProductAgorot,
       shipping_cost_agorot: lineShipping,
-      total_agorot: lineProductAgorot + lineShipping + lineHandling,
+      total_agorot: lineProductAgorot + lineShipping + lineHandling - lineDiscount,
       display_publicly: displayPublicly,
+      coupon_code: isFirst ? couponCode : null,
+      discount_agorot: lineDiscount,
     };
   });
 
@@ -199,7 +227,7 @@ export async function POST(req: Request) {
     productType: cartProductTypeForNotice,
     size: resolved.length === 1 ? resolved[0].size : "mixed",
     quantity: totalQuantityForNotice,
-    totalAgorot: price.totalAgorot,
+    totalAgorot: finalAgorot,
     country,
     mode: isTestMode ? "test" : "live",
   });
@@ -238,7 +266,7 @@ export async function POST(req: Request) {
           productType: cartProductType,
           size: resolved.length === 1 ? resolved[0].size : "mixed",
           quantity: totalQuantity,
-          totalAgorot: price.totalAgorot,
+          totalAgorot: finalAgorot,
           imageUrl: firstImageUrl,
           shippingName: address.name,
           shippingCity: address.city,
@@ -250,7 +278,7 @@ export async function POST(req: Request) {
       productType: cartProductType,
       size: resolved.length === 1 ? resolved[0].size : `mixed (${resolved.length} items)`,
       quantity: totalQuantity,
-      totalAgorot: price.totalAgorot,
+      totalAgorot: finalAgorot,
       customerPhone: cartPhone,
       customerEmail: address.email ?? null,
       imageUrl: firstImageUrl,
@@ -280,10 +308,10 @@ export async function POST(req: Request) {
     });
   }
 
-  // --- Live mode: PayPlus single payment for the cart total.
+  // --- Live mode: PayPlus single payment for the cart total (after coupon).
   try {
     const result = await generatePaymentLink({
-      amount: price.totalAgorot / 100,
+      amount: finalAgorot / 100,
       currencyCode: "ILS",
       moreInfo: `cart:${cartId}`,
       refUrlSuccess: `${appUrl}/payment/success?cart=${cartId}`,
@@ -296,7 +324,7 @@ export async function POST(req: Request) {
       redirectUrl: result.paymentPageLink,
       paymentPageLink: result.paymentPageLink,
       pageRequestUid: result.pageRequestUid,
-      breakdown: price,
+      breakdown: { ...price, discountAgorot, finalAgorot, couponCode },
     });
   } catch (e) {
     if (e instanceof PayPlusError) {
