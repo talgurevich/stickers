@@ -102,3 +102,85 @@ export async function generatePaymentLink(
     paymentPageLink: j.data.payment_page_link,
   };
 }
+
+export type VerifiedTransaction = {
+  ok: boolean;
+  statusCode: string | null;
+  /** PayPlus echoes more_info back here when verifying. */
+  moreInfo: string | null;
+  amount: number | null;
+  raw: unknown;
+};
+
+/**
+ * Re-query PayPlus to confirm a transaction the IPN told us about. Endpoint
+ * derived from the official PHP SDK (PaymentPages/ipn). Pass either a
+ * transaction_uid or a payment_request_uid. Auth header is the same JSON
+ * `{api_key, secret_key}` shape used by generateLink.
+ *
+ * Treats `data.result.status_code === "000"` as the canonical "paid" signal
+ * (matches the PHP SDK's IsSuccess()).
+ */
+export async function verifyTransaction(args: {
+  transactionUid?: string | null;
+  paymentRequestUid?: string | null;
+}): Promise<VerifiedTransaction> {
+  const cfg = env.payplus();
+  if (!args.transactionUid && !args.paymentRequestUid) {
+    throw new PayPlusError("verifyTransaction: missing transaction id");
+  }
+
+  const url = `${cfg.baseUrl.replace(/\/$/, "")}/PaymentPages/ipn`;
+  const body: Record<string, string> = {};
+  if (args.transactionUid) body.transaction_uid = args.transactionUid;
+  if (args.paymentRequestUid) body.payment_request_uid = args.paymentRequestUid;
+
+  const auth = JSON.stringify({
+    api_key: cfg.apiKey,
+    secret_key: cfg.secretKey,
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: auth },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, statusCode: null, moreInfo: null, amount: null, raw: text };
+  }
+
+  const j = json as {
+    results?: { status?: string };
+    data?: {
+      result?: {
+        status_code?: string;
+        more_info?: string;
+        amount?: number | string;
+      };
+    };
+  };
+
+  const result = j.data?.result;
+  const statusCode = result?.status_code ?? null;
+  const amountRaw = result?.amount;
+  const amount =
+    typeof amountRaw === "number"
+      ? amountRaw
+      : typeof amountRaw === "string"
+        ? Number(amountRaw)
+        : null;
+
+  return {
+    ok: j.results?.status === "success" && statusCode === "000",
+    statusCode,
+    moreInfo: result?.more_info ?? null,
+    amount: Number.isFinite(amount) ? (amount as number) : null,
+    raw: json,
+  };
+}

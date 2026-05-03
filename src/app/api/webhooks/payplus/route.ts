@@ -1,15 +1,286 @@
 import { NextResponse } from "next/server";
+import { verifyTransaction } from "@/lib/payplus";
+import {
+  getOrder,
+  getCartOrders,
+  markOrderPaid,
+  markCartPaid,
+  submitOrderForPrinting,
+  submitCartForPrinting,
+} from "@/lib/orders";
+import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
+import { serverClient, STORAGE_BUCKET } from "@/lib/supabase";
+import {
+  isProductType,
+  type ProductType,
+} from "@/lib/prodigi-catalog";
 
 export const runtime = "nodejs";
 
-// PayPlus IPN. Locally (no public URL) this won't be called; once deployed,
-// PayPlus posts here after a transaction settles.
-// TODO: verify HMAC once the webhook is configured in the PayPlus dashboard
-// (the dashboard reveals the HMAC secret on save). The brief flags this as
-// "verify on every callback" — must not be skipped before live cutover.
+// PayPlus IPN handler.
+//
+// PayPlus posts here after every transaction (success and failure, since we
+// enabled "send callback for failed transactions" in the dashboard). The
+// payload is form-urlencoded by default for legacy reasons, JSON when the
+// merchant opts in — accept both.
+//
+// Authenticity: PayPlus does not expose an HMAC for this terminal type, so
+// instead of trusting the IPN body we re-query PaymentPages/ipn with the
+// transaction_uid. A forged IPN would need a real PayPlus-side transaction
+// to pass verification.
+//
+// Always respond 200 — non-2xx makes PayPlus retry, and our processing is
+// idempotent (markOrderPaid / markCartPaid filter on paid_at IS NULL).
 export async function POST(req: Request) {
-  const body = await req.text();
-  const headers = Object.fromEntries(req.headers);
-  console.log("[payplus webhook]", { headers, body });
-  return NextResponse.json({ ok: true });
+  const raw = await req.text();
+  const payload = parseBody(raw, req.headers.get("content-type"));
+
+  const transactionUid =
+    str(payload.transaction_uid) ||
+    str(payload.transactionUid) ||
+    null;
+  const paymentRequestUid =
+    str(payload.payment_request_uid) ||
+    str(payload.paymentRequestUid) ||
+    null;
+  const moreInfo = str(payload.more_info) || str(payload.moreInfo) || null;
+
+  console.log("[payplus webhook] received", {
+    transactionUid,
+    paymentRequestUid,
+    moreInfo,
+    statusCodeFromBody: str(payload.status_code),
+  });
+
+  if (!transactionUid && !paymentRequestUid) {
+    console.warn("[payplus webhook] missing transaction id", { payload });
+    return NextResponse.json({ ok: false, reason: "missing-transaction-id" });
+  }
+
+  let verified;
+  try {
+    verified = await verifyTransaction({ transactionUid, paymentRequestUid });
+  } catch (e) {
+    console.error("[payplus webhook] verify threw", e);
+    return NextResponse.json({ ok: false, reason: "verify-threw" });
+  }
+
+  console.log("[payplus webhook] verified", {
+    ok: verified.ok,
+    statusCode: verified.statusCode,
+    moreInfoFromVerify: verified.moreInfo,
+  });
+
+  if (!verified.ok) {
+    return NextResponse.json({
+      ok: false,
+      reason: "verify-failed",
+      statusCode: verified.statusCode,
+    });
+  }
+
+  // Prefer the more_info from the verification response (PayPlus-issued)
+  // over what the IPN body gave us (could be tampered).
+  const trustedMoreInfo = verified.moreInfo ?? moreInfo;
+  const target = parseMoreInfo(trustedMoreInfo);
+  if (!target) {
+    console.warn("[payplus webhook] unrecognized more_info", { trustedMoreInfo });
+    return NextResponse.json({ ok: false, reason: "no-more-info" });
+  }
+
+  if (target.kind === "cart") {
+    return handleCart(target.id, transactionUid);
+  }
+  return handleOrder(target.id, transactionUid);
+}
+
+// --- handlers ---
+
+async function handleOrder(orderId: string, transactionUid: string | null) {
+  const beforeOrder = await getOrder(orderId);
+  if (!beforeOrder) {
+    console.warn("[payplus webhook] order not found", { orderId });
+    return NextResponse.json({ ok: false, reason: "order-not-found", orderId });
+  }
+
+  const wasAlreadyPaid = Boolean(beforeOrder.paid_at);
+  const paidRow = await markOrderPaid(orderId, transactionUid);
+  const submission = await submitOrderForPrinting(orderId);
+
+  // Only fire emails on the first paid event, not on PayPlus retries.
+  if (!wasAlreadyPaid && paidRow) {
+    const productType: ProductType = isProductType(paidRow.product_type)
+      ? paidRow.product_type
+      : "sticker";
+    const imageUrl = await signedImage(paidRow.print_image_url || paidRow.image_url);
+    const a = paidRow.shipping_address;
+
+    if (paidRow.email) {
+      await sendOrderConfirmation({
+        to: paidRow.email,
+        orderId: paidRow.id,
+        productType,
+        size: paidRow.size_mm,
+        quantity: paidRow.quantity,
+        totalAgorot: paidRow.total_agorot,
+        imageUrl,
+        shippingName: a.name,
+        shippingCity: a.city,
+      });
+    }
+
+    await sendOwnerOrderNotification({
+      orderId: paidRow.id,
+      productType,
+      size: paidRow.size_mm,
+      quantity: paidRow.quantity,
+      totalAgorot: paidRow.total_agorot,
+      customerPhone: paidRow.phone_e164,
+      customerEmail: paidRow.email,
+      imageUrl,
+      shippingName: a.name,
+      shippingStreet: a.street,
+      shippingCity: a.city,
+      shippingZip: a.zip,
+      fulfillmentId:
+        submission.kind === "submitted" || submission.kind === "already-submitted"
+          ? submission.fulfillmentOrderId
+          : null,
+      fulfillmentStatus:
+        submission.kind === "error" ? `error: ${submission.message}` : submission.kind,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    orderId,
+    submission,
+    firstPayment: !wasAlreadyPaid,
+  });
+}
+
+async function handleCart(cartId: string, transactionUid: string | null) {
+  const before = await getCartOrders(cartId);
+  if (before.length === 0) {
+    console.warn("[payplus webhook] cart not found", { cartId });
+    return NextResponse.json({ ok: false, reason: "cart-not-found", cartId });
+  }
+
+  const wasAlreadyPaid = before.every((r) => r.paid_at);
+  const justPaid = await markCartPaid(cartId, transactionUid);
+  const submission = await submitCartForPrinting(cartId);
+
+  if (!wasAlreadyPaid && justPaid.length > 0) {
+    const first = justPaid[0];
+    const a = first.shipping_address;
+    const totalAgorot = justPaid.reduce((n, r) => n + (r.total_agorot ?? 0), 0);
+    const totalQty = justPaid.reduce((n, r) => n + r.quantity, 0);
+
+    const productTypes = new Set(justPaid.map((r) => r.product_type));
+    const cartProductType: ProductType | "mixed" =
+      productTypes.size === 1 && isProductType(first.product_type)
+        ? (first.product_type as ProductType)
+        : "mixed";
+
+    const imageUrl = await signedImage(first.print_image_url || first.image_url);
+
+    if (first.email) {
+      await sendOrderConfirmation({
+        to: first.email,
+        orderId: cartId,
+        productType: cartProductType,
+        size: justPaid.length === 1 ? justPaid[0].size_mm : "mixed",
+        quantity: totalQty,
+        totalAgorot,
+        imageUrl,
+        shippingName: a.name,
+        shippingCity: a.city,
+      });
+    }
+
+    await sendOwnerOrderNotification({
+      orderId: cartId,
+      productType: cartProductType,
+      size:
+        justPaid.length === 1
+          ? justPaid[0].size_mm
+          : `mixed (${justPaid.length} items)`,
+      quantity: totalQty,
+      totalAgorot,
+      customerPhone: first.phone_e164,
+      customerEmail: first.email,
+      imageUrl,
+      shippingName: a.name,
+      shippingStreet: a.street,
+      shippingCity: a.city,
+      shippingZip: a.zip,
+      fulfillmentId:
+        submission.kind === "submitted" || submission.kind === "already-submitted"
+          ? submission.fulfillmentOrderId
+          : null,
+      fulfillmentStatus:
+        submission.kind === "error" ? `error: ${submission.message}` : submission.kind,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    cartId,
+    submission,
+    firstPayment: !wasAlreadyPaid,
+    rows: justPaid.length,
+  });
+}
+
+// --- parsing helpers ---
+
+function parseBody(
+  raw: string,
+  contentType: string | null,
+): Record<string, unknown> {
+  const ct = (contentType ?? "").toLowerCase();
+  const trimmed = raw.trim();
+
+  if (ct.includes("application/json") || trimmed.startsWith("{")) {
+    try {
+      const j = JSON.parse(trimmed);
+      return typeof j === "object" && j !== null ? (j as Record<string, unknown>) : {};
+    } catch {
+      // fall through to form parsing
+    }
+  }
+
+  // form-urlencoded (default for PayPlus IPN)
+  const out: Record<string, string> = {};
+  try {
+    const params = new URLSearchParams(raw);
+    for (const [k, v] of params.entries()) out[k] = v;
+  } catch {
+    // ignore
+  }
+  return out;
+}
+
+function str(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return "";
+}
+
+function parseMoreInfo(
+  v: string | null,
+): { kind: "order" | "cart"; id: string } | null {
+  if (!v) return null;
+  const m = v.match(/^(order|cart):([0-9a-fA-F-]{8,})$/);
+  if (!m) return null;
+  return { kind: m[1] as "order" | "cart", id: m[2] };
+}
+
+async function signedImage(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data } = await serverClient()
+    .storage.from(STORAGE_BUCKET)
+    .createSignedUrl(path, 7 * 24 * 60 * 60);
+  return data?.signedUrl ?? null;
 }
