@@ -146,11 +146,11 @@ export const MVP_SIZES_BY_PRODUCT: {
   tattoo: ["s", "m", "l"],
 };
 
-/** Default size when switching into a product (typically the smallest). */
+/** Default size when switching into a product — smallest of each. */
 export const DEFAULT_SIZE_BY_PRODUCT = {
-  sticker: "medium" as StickerSize,
+  sticker: "small" as StickerSize,
   magnet: "small" as MagnetSize,
-  tattoo: "m" as TattooSize,
+  tattoo: "s" as TattooSize,
 };
 
 /** Hebrew product names for UI. */
