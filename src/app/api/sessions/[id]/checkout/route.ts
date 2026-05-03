@@ -194,6 +194,16 @@ export async function POST(
 
   // --- Live mode: PayPlus.
   try {
+    const customer = address.email
+      ? {
+          customer_name: address.name,
+          email: address.email,
+          phone: address.phone ?? `+${session.phoneE164}`,
+          address: address.street,
+          city: address.city,
+          country_ISO: address.country,
+        }
+      : undefined;
     const result = await generatePaymentLink({
       amount: price.totalAgorot / 100,
       currencyCode: "ILS",
@@ -201,6 +211,7 @@ export async function POST(
       refUrlSuccess: `${appUrl}/payment/success?order=${order.id}`,
       refUrlFailure: `${appUrl}/payment/failure?order=${order.id}`,
       refUrlCallback: `${appUrl}/api/webhooks/payplus`,
+      customer,
     });
     return NextResponse.json({
       mode: "live",

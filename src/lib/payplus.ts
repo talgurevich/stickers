@@ -20,6 +20,20 @@ export type GenerateLinkInput = {
   refUrlSuccess?: string;
   refUrlFailure?: string;
   refUrlCallback?: string;
+  /**
+   * Customer details forwarded to PayPlus so the transaction is attributed
+   * to a real person (visible in the dashboard, used for invoicing).
+   * Both customer_name and email are required for PayPlus to accept the
+   * customer object.
+   */
+  customer?: {
+    customer_name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    country_ISO?: string;
+  };
 };
 
 export type GenerateLinkResult = {
@@ -57,6 +71,9 @@ export async function generatePaymentLink(
   if (input.refUrlSuccess) body.refURL_success = input.refUrlSuccess;
   if (input.refUrlFailure) body.refURL_failure = input.refUrlFailure;
   if (input.refUrlCallback) body.refURL_callback = input.refUrlCallback;
+  if (input.customer && input.customer.customer_name && input.customer.email) {
+    body.customer = input.customer;
+  }
 
   const auth = JSON.stringify({
     api_key: cfg.apiKey,

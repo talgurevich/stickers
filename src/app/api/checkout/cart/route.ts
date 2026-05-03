@@ -309,7 +309,19 @@ export async function POST(req: Request) {
   }
 
   // --- Live mode: PayPlus single payment for the cart total (after coupon).
+  // Forward customer details from the address form so PayPlus shows a real
+  // person on the transaction (instead of the default "General Customer").
   try {
+    const customer = address.email
+      ? {
+          customer_name: address.name,
+          email: address.email,
+          phone: address.phone ?? `+${cartPhone}`,
+          address: address.street,
+          city: address.city,
+          country_ISO: address.country,
+        }
+      : undefined;
     const result = await generatePaymentLink({
       amount: finalAgorot / 100,
       currencyCode: "ILS",
@@ -317,6 +329,7 @@ export async function POST(req: Request) {
       refUrlSuccess: `${appUrl}/payment/success?cart=${cartId}`,
       refUrlFailure: `${appUrl}/payment/failure?cart=${cartId}`,
       refUrlCallback: `${appUrl}/api/webhooks/payplus`,
+      customer,
     });
     return NextResponse.json({
       mode: "live",
