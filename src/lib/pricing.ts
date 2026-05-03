@@ -191,15 +191,20 @@ const DEFAULT_COUNTRY: CountryCode = "IL";
 
 // --- Bulk discount tiers, per product -------------------------------------
 
+// Bulk tier caps were lowered (sticker 30→25, magnet 25→20, tattoo 35→25)
+// because the original top tiers compressed margin to single digits per unit
+// before PayPlus fees and FX drift. New tiers keep the upsell story while
+// staying above ~14% gross margin at qty 20.
+
 function bulkDiscountForSticker(qty: number): number {
-  if (qty >= 20) return 0.3;
+  if (qty >= 20) return 0.25;
   if (qty >= 10) return 0.2;
   if (qty >= 5) return 0.1;
   return 0;
 }
 
 function bulkDiscountForMagnet(qty: number): number {
-  if (qty >= 20) return 0.25;
+  if (qty >= 20) return 0.2;
   if (qty >= 10) return 0.18;
   if (qty >= 5) return 0.12;
   if (qty >= 3) return 0.05;
@@ -207,8 +212,8 @@ function bulkDiscountForMagnet(qty: number): number {
 }
 
 function bulkDiscountForTattoo(qty: number): number {
-  if (qty >= 20) return 0.35;
-  if (qty >= 10) return 0.25;
+  if (qty >= 20) return 0.25;
+  if (qty >= 10) return 0.22;
   if (qty >= 5) return 0.15;
   return 0;
 }
@@ -296,6 +301,67 @@ export function priceFor(
     bulkDiscount,
     productBeforeDiscountAgorot,
   };
+}
+
+// --- Recommended packages (configure-page presets) ------------------------
+//
+// Per-product preset quantities + a "recommended" flag. The recommended qty
+// is the sweet spot where the per-unit price drops noticeably AND total
+// stays affordable AND our margin remains healthy (>20%). Tuned per product:
+// stickers go to 10 (low total, sub-₪6/unit), magnets+tattoos stay at 5
+// (higher unit cost, smaller batches feel natural for those products).
+
+export type PackageOption = {
+  quantity: number;
+  perUnitAgorot: number;
+  /** Product-only total (no shipping/handling) — what the card displays. */
+  productAgorot: number;
+  bulkDiscount: number;
+  isRecommended: boolean;
+  isBestValue: boolean;
+};
+
+const PRESETS_BY_PRODUCT: Record<ProductType, number[]> = {
+  sticker: [1, 5, 10, 20],
+  magnet: [1, 3, 5, 10],
+  tattoo: [1, 5, 10, 20],
+};
+
+const RECOMMENDED_QTY: Record<ProductType, number> = {
+  sticker: 10,
+  magnet: 5,
+  tattoo: 5,
+};
+
+/**
+ * Per-product preset packages — used by the configure UI to show 4 cards
+ * instead of a bare quantity input. Per-unit prices exclude shipping &
+ * handling (those are cart-level, not per-line).
+ */
+export function recommendedPackages(
+  productType: ProductType,
+  size: string,
+): PackageOption[] {
+  const unitUsd = unitUsdFor(productType, size);
+  if (unitUsd === null) return [];
+  const markup = MARKUP_BY_PRODUCT[productType];
+  const quantities = PRESETS_BY_PRODUCT[productType];
+  const recommended = RECOMMENDED_QTY[productType];
+  const bestValueQty = quantities[quantities.length - 1];
+
+  return quantities.map((qty) => {
+    const before = unitUsd * qty * markup * USD_TO_ILS * 100;
+    const discount = bulkDiscountFor(productType, qty);
+    const productAgorot = Math.round(before * (1 - discount));
+    return {
+      quantity: qty,
+      perUnitAgorot: Math.round(productAgorot / qty),
+      productAgorot,
+      bulkDiscount: discount,
+      isRecommended: qty === recommended,
+      isBestValue: qty === bestValueQty,
+    };
+  });
 }
 
 // --- Cart price (mixed products, single shipment) -------------------------

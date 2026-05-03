@@ -3,7 +3,12 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { priceFor, formatIls, type PriceBreakdown } from "@/lib/pricing";
+import {
+  priceFor,
+  formatIls,
+  recommendedPackages,
+  type PriceBreakdown,
+} from "@/lib/pricing";
 import {
   DEFAULT_SIZE_BY_PRODUCT,
   PRODUCT_LABELS_HE,
@@ -36,14 +41,22 @@ const PRODUCT_BLURB_HE: Record<ProductType, string> = {
 // Per-product bulk discount tiers shown in the side panel. Mirror what
 // pricing.ts actually applies — keep these in sync if the tiers change.
 const BULK_TIERS_HE: Record<ProductType, string[]> = {
-  sticker: ["5+ — 10% הנחה", "10+ — 20% הנחה", "20+ — 30% הנחה"],
+  sticker: ["5+ — 10% הנחה", "10+ — 20% הנחה", "20+ — 25% הנחה"],
   magnet: [
     "3+ — 5% הנחה",
     "5+ — 12% הנחה",
     "10+ — 18% הנחה",
-    "20+ — 25% הנחה",
+    "20+ — 20% הנחה",
   ],
-  tattoo: ["5+ — 15% הנחה", "10+ — 25% הנחה", "20+ — 35% הנחה"],
+  tattoo: ["5+ — 15% הנחה", "10+ — 22% הנחה", "20+ — 25% הנחה"],
+};
+
+// Default qty per product = the "recommended" preset surfaced by
+// recommendedPackages(). Keep in sync with RECOMMENDED_QTY in pricing.ts.
+const DEFAULT_QTY_BY_PRODUCT: Record<ProductType, number> = {
+  sticker: 10,
+  magnet: 5,
+  tattoo: 5,
 };
 
 export default function ConfigurePage({
@@ -72,7 +85,10 @@ export default function ConfigurePage({
 
   const [productType, setProductType] = useState<ProductType>(seedProduct);
   const [size, setSize] = useState<string>(seedSize);
-  const [quantity, setQuantity] = useState(existingForProduct[0]?.quantity ?? 1);
+  const [quantity, setQuantity] = useState(
+    existingForProduct[0]?.quantity ?? DEFAULT_QTY_BY_PRODUCT[seedProduct],
+  );
+  const [showCustomQty, setShowCustomQty] = useState(false);
 
   useEffect(() => {
     fetch(`/api/sessions/${id}`, { cache: "no-store" })
@@ -95,7 +111,8 @@ export default function ConfigurePage({
     );
     setProductType(next);
     setSize(existing?.size ?? DEFAULT_SIZE_BY_PRODUCT[next]);
-    setQuantity(existing?.quantity ?? 1);
+    setQuantity(existing?.quantity ?? DEFAULT_QTY_BY_PRODUCT[next]);
+    setShowCustomQty(false);
   }
 
   const variants = variantsForProduct(productType);
@@ -243,36 +260,101 @@ export default function ConfigurePage({
             <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
               כמות
             </h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="h-10 w-10 rounded-full border border-zinc-300 text-lg dark:border-zinc-700"
-              >
-                –
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={quantity}
-                onChange={(e) =>
-                  setQuantity(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
-                }
-                className="h-10 w-20 rounded-lg border border-zinc-300 text-center text-lg dark:border-zinc-700 dark:bg-zinc-900"
-                dir="ltr"
-              />
-              <button
-                onClick={() => setQuantity(Math.min(50, quantity + 1))}
-                className="h-10 w-10 rounded-full border border-zinc-300 text-lg dark:border-zinc-700"
-              >
-                +
-              </button>
-              {price && (
-                <span className="text-xs font-medium text-emerald-600">
-                  {formatIls(price.perUnitAgorot)} ליחידה
-                </span>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {recommendedPackages(productType, size).map((pkg) => {
+                const isSelected =
+                  quantity === pkg.quantity && !showCustomQty;
+                return (
+                  <button
+                    key={pkg.quantity}
+                    type="button"
+                    onClick={() => {
+                      setQuantity(pkg.quantity);
+                      setShowCustomQty(false);
+                    }}
+                    className={`relative flex flex-col items-center gap-1 rounded-xl border p-3 text-center transition-colors ${
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-950/30"
+                        : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+                    }`}
+                  >
+                    {pkg.isRecommended && (
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        מומלץ
+                      </span>
+                    )}
+                    {pkg.isBestValue && !pkg.isRecommended && (
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        הכי משתלם
+                      </span>
+                    )}
+                    <div className="text-base font-bold">
+                      {pkg.quantity}
+                    </div>
+                    <div className="text-[11px] text-zinc-500">
+                      {pkg.quantity === 1 ? "יחידה" : "יחידות"}
+                    </div>
+                    <div className="mt-1 text-base font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatIls(pkg.perUnitAgorot)}
+                    </div>
+                    <div className="text-[11px] text-zinc-500">ליחידה</div>
+                    {pkg.bulkDiscount > 0 && (
+                      <div className="mt-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                        −{Math.round(pkg.bulkDiscount * 100)}%
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3">
+              {showCustomQty ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="h-10 w-10 rounded-full border border-zinc-300 text-lg dark:border-zinc-700"
+                  >
+                    –
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={quantity}
+                    onChange={(e) =>
+                      setQuantity(
+                        Math.max(1, Math.min(50, Number(e.target.value) || 1)),
+                      )
+                    }
+                    className="h-10 w-20 rounded-lg border border-zinc-300 text-center text-lg dark:border-zinc-700 dark:bg-zinc-900"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.min(50, quantity + 1))}
+                    className="h-10 w-10 rounded-full border border-zinc-300 text-lg dark:border-zinc-700"
+                  >
+                    +
+                  </button>
+                  {price && (
+                    <span className="text-xs font-medium text-emerald-600">
+                      {formatIls(price.perUnitAgorot)} ליחידה
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomQty(true)}
+                  className="text-xs text-zinc-500 underline hover:text-zinc-800 dark:hover:text-zinc-200"
+                >
+                  כמות אחרת
+                </button>
               )}
             </div>
+
             {price && (
               <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/60">
                 <div className="font-semibold text-zinc-700 dark:text-zinc-200">
