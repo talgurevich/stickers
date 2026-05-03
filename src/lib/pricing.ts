@@ -258,8 +258,6 @@ export type PriceBreakdown = {
   productAgorot: number;
   shippingAgorot: number;
   totalAgorot: number;
-  /** Per-piece delivered price for display. */
-  perUnitAgorot: number;
   /** Bulk discount applied (0..0.35); 0 means none. */
   bulkDiscount: number;
   /** What product would have cost without bulk discount (for "before" display). */
@@ -291,13 +289,11 @@ export function priceFor(
   );
   const shippingAgorot = Math.round(shippingUsd * USD_TO_ILS * 100);
   const totalAgorot = productAgorot + shippingAgorot + HANDLING_AGOROT;
-  const perUnitAgorot = Math.round(totalAgorot / quantity);
 
   return {
     productAgorot,
     shippingAgorot,
     totalAgorot,
-    perUnitAgorot,
     bulkDiscount,
     productBeforeDiscountAgorot,
   };
