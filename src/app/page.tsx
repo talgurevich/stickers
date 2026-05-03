@@ -120,11 +120,11 @@ export default function Home() {
 
         <div className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-lg sm:text-4xl">
-            מהוואטסאפ אל הקיר, המקרר,{" "}
-            <span className="text-emerald-300">והעור</span>
+            הסטיקר ההוא מהוואטסאפ?{" "}
+            <span className="text-emerald-300">עכשיו על הקיר.</span>
           </h1>
           <p className="text-lg text-zinc-100/95 drop-shadow">
-            שולחים תמונה או סטיקר. בוחרים: מדבקה, מגנט, או קעקוע זמני. מקבלים עד הבית.
+            שולחים בוואטסאפ. אנחנו מדפיסים. מקבלים הביתה. אין אפליקציה, אין עיצוב, אין סיבה לא.
           </p>
         </div>
 
