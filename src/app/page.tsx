@@ -5,14 +5,6 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import RecentFeed from "./_components/RecentFeed";
 import {
-  CatSticker,
-  DogSticker,
-  DuckSticker,
-  FrogSticker,
-  HenSticker,
-  OctopusSticker,
-} from "./_components/AnimalStickers";
-import {
   clearStoredPhone,
   formatStoredPhone,
   getStoredPhone,
@@ -24,47 +16,36 @@ const HERO_IMAGE_URL =
 
 // Satirical "testimonials" — none of these people exist. Tone is whimsical
 // and self-aware; they punch up the cultural absurdity of WhatsApp stickers
-// becoming physical objects. Each is paired with a hand-drawn kiss-cut
-// animal sticker that loosely matches the testimonial's vibe.
-const TESTIMONIALS: {
-  quote: string;
-  byline: string;
-  Sticker: React.ComponentType<{ size?: number; tilt?: number }>;
-}[] = [
+// becoming physical objects.
+const TESTIMONIALS: { quote: string; byline: string }[] = [
   {
     quote:
       "קניתי 20 מדבקות של החתול שלי. הוא לא יודע. כנראה לא ידע לעולם. אני אדם מאושר יותר.",
     byline: "מיכל, 34, ראשון לציון",
-    Sticker: CatSticker,
   },
   {
     quote:
       "חשבתי שזה רעיון מטופש. הוא באמת מטופש. הזמנתי בכל זאת. אני שמח שהזמנתי. אני מבולבל.",
     byline: "עופר, 45, חיפה",
-    Sticker: FrogSticker,
   },
   {
     quote:
       "אמא שלי שלחה לי בוואטסאפ סטיקר של עצמה אוכלת חומוס. עכשיו זה קעקוע זמני על היד שלי. אני בן 32.",
     byline: "יותם, ירושלים",
-    Sticker: HenSticker,
   },
   {
     quote:
       "כמומחה לתחום הדבק, אני מאשר: איכות יוצאת דופן ביחס לקטגוריה.",
     byline: "ד״ר דן ברק (תואר לא קיים)",
-    Sticker: OctopusSticker,
   },
   {
     quote:
       "זה עבד. המדבקה הגיעה. דבקה לקיר. אני לא יודע מה אתם רוצים שאומר.",
     byline: "רן, מהנדס",
-    Sticker: DogSticker,
   },
   {
     quote: "זה כל כך מטופש שזה גאוני.",
     byline: "אלון, רמת השרון",
-    Sticker: DuckSticker,
   },
 ];
 
@@ -279,19 +260,12 @@ export default function Home() {
             {TESTIMONIALS.map((t, i) => (
               <li
                 key={i}
-                className="flex items-start gap-3 rounded-xl border border-white/20 bg-white/10 p-4 text-right backdrop-blur-sm"
+                className="rounded-xl border border-white/20 bg-white/10 p-4 text-right backdrop-blur-sm"
               >
-                <div className="shrink-0">
-                  <t.Sticker size={56} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-relaxed text-white">
-                    &ldquo;{t.quote}&rdquo;
-                  </p>
-                  <p className="mt-2 text-[11px] text-zinc-300">
-                    — {t.byline}
-                  </p>
-                </div>
+                <p className="text-sm leading-relaxed text-white">
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <p className="mt-2 text-[11px] text-zinc-300">— {t.byline}</p>
               </li>
             ))}
           </ul>
