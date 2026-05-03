@@ -68,6 +68,8 @@ async function send(args: {
 
 // --- Templates ---
 
+const SUPPORT_EMAIL = "info@wallaura.art";
+
 function shell(title: string, body: string): string {
   return `<!doctype html>
 <html lang="he" dir="rtl">
@@ -76,7 +78,10 @@ function shell(title: string, body: string): string {
   <div style="max-width:560px;margin:0 auto;padding:32px 24px;">
     ${body}
     <hr style="border:none;border-top:1px solid #e4e4e7;margin:32px 0;">
-    <p style="font-size:12px;color:#71717a;text-align:center;">
+    <p style="font-size:13px;color:#52525b;text-align:center;line-height:1.6;">
+      צריכים עזרה? כתבו לנו ל־<a href="mailto:${SUPPORT_EMAIL}" style="color:#18181b;">${SUPPORT_EMAIL}</a>
+    </p>
+    <p style="font-size:12px;color:#a1a1aa;text-align:center;margin-top:8px;">
       Wallaura · האמנות שלך מהוואטסאפ, מודפסת אצלך בבית
     </p>
   </div>
@@ -84,14 +89,44 @@ function shell(title: string, body: string): string {
 </html>`;
 }
 
+export type OrderItemLine = {
+  productType: ProductType;
+  size: string;
+  quantity: number;
+  imageUrl?: string | null;
+};
+
+function renderItemsTable(items: OrderItemLine[]): string {
+  const rows = items
+    .map((it) => {
+      const variant = variantFor(it.productType, it.size);
+      const sizeLabel = variant ? variant.labelHe : it.size;
+      const productLabel =
+        PRODUCT_LABELS_HE_PLURAL[it.productType] ?? it.productType;
+      return `<tr style="border-top:1px solid #e4e4e7;">
+        <td style="padding:10px 0;vertical-align:middle;width:64px;">
+          ${
+            it.imageUrl
+              ? `<img src="${it.imageUrl}" alt="" style="width:56px;height:56px;border-radius:8px;border:1px solid #e4e4e7;object-fit:contain;background:#fff;">`
+              : ""
+          }
+        </td>
+        <td style="padding:10px 12px;vertical-align:middle;font-size:14px;">
+          <div style="font-weight:600;">${productLabel}</div>
+          <div style="color:#71717a;font-size:13px;">${sizeLabel} · כמות ${it.quantity}</div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>`;
+}
+
 export type OrderEmailInput = {
   to: string;
   orderId: string;
-  productType?: ProductType | "mixed";
-  size: string;
-  quantity: number;
+  /** All line items in the cart. For single-item legacy callers, pass a one-element array. */
+  items: OrderItemLine[];
   totalAgorot: number;
-  imageUrl?: string | null;
   shippingName?: string;
   shippingCity?: string;
 };
@@ -99,18 +134,17 @@ export type OrderEmailInput = {
 export async function sendOrderConfirmation(
   o: OrderEmailInput,
 ): Promise<SendResult> {
-  const productType: ProductType | "mixed" = isProductType(o.productType)
-    ? o.productType
-    : o.productType === "mixed"
-      ? "mixed"
-      : "sticker";
-  const variant =
-    productType !== "mixed" ? variantFor(productType, o.size) : null;
-  const sizeLabel = variant ? variant.labelHe : o.size;
+  // Wording: if the cart is uniform (one product type), use that plural;
+  // otherwise fall back to "המוצרים" (the products).
+  const productTypes = new Set(o.items.map((i) => i.productType));
   const productLabelPlural =
-    productType === "mixed"
-      ? "המוצרים"
-      : PRODUCT_LABELS_HE_PLURAL[productType];
+    productTypes.size === 1
+      ? PRODUCT_LABELS_HE_PLURAL[[...productTypes][0]]
+      : "המוצרים";
+  const totalQuantity = o.items.reduce((n, i) => n + i.quantity, 0);
+  const itemCountLabel =
+    o.items.length > 1 ? `${o.items.length} פריטים` : `פריט אחד`;
+
   const html = shell(
     "ההזמנה שלך התקבלה",
     `
@@ -119,22 +153,15 @@ export async function sendOrderConfirmation(
       תודה! ההזמנה שלך נשלחה להדפסה. בעוד 7-14 ימי עסקים תקבל/י את ${productLabelPlural} לכתובת שמסרת.
     </p>
 
-    ${
-      o.imageUrl
-        ? `<div style="text-align:center;margin:24px 0;">
-            <img src="${o.imageUrl}" alt="המדבקה שלך" style="max-width:240px;border-radius:12px;border:1px solid #e4e4e7;">
-          </div>`
-        : ""
-    }
+    <h3 style="margin:24px 0 4px;font-size:14px;font-weight:600;color:#52525b;">${itemCountLabel} בהזמנה</h3>
+    ${renderItemsTable(o.items)}
 
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
       <tr><td style="padding:6px 0;color:#71717a;">מספר הזמנה</td>
           <td style="padding:6px 0;text-align:left;font-family:monospace;font-size:12px;">${o.orderId}</td></tr>
-      <tr><td style="padding:6px 0;color:#71717a;">גודל</td>
-          <td style="padding:6px 0;text-align:left;">${sizeLabel}</td></tr>
-      <tr><td style="padding:6px 0;color:#71717a;">כמות</td>
-          <td style="padding:6px 0;text-align:left;">${o.quantity}</td></tr>
-      <tr><td style="padding:6px 0;color:#71717a;">סה״כ</td>
+      <tr><td style="padding:6px 0;color:#71717a;">סך פריטים</td>
+          <td style="padding:6px 0;text-align:left;">${totalQuantity}</td></tr>
+      <tr><td style="padding:6px 0;color:#71717a;">סה״כ ששולם</td>
           <td style="padding:6px 0;text-align:left;font-weight:700;">${formatIls(o.totalAgorot)}</td></tr>
       ${
         o.shippingName
@@ -145,24 +172,48 @@ export async function sendOrderConfirmation(
     </table>
 
     <p style="font-size:13px;color:#71717a;line-height:1.6;">
-      נעדכן אותך בוואטסאפ ובמייל ברגע ש${productLabelPlural} יוצאים לדרך.
+      נעדכן אותך במייל ברגע ש${productLabelPlural} נכנסים לייצור, ושוב כשהחבילה יוצאת לדרך.
     </p>
   `,
   );
   return send({ to: o.to, subject: "ההזמנה שלך מ-Wallaura התקבלה", html });
 }
 
+// --- Production / progress notification ---
+
+export async function sendInProductionNotification(args: {
+  to: string;
+  orderId: string;
+  items: OrderItemLine[];
+}): Promise<SendResult> {
+  const html = shell(
+    "ההזמנה נכנסה לייצור",
+    `
+    <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;">ההזמנה שלך נכנסה לייצור 🖨️</h1>
+    <p style="font-size:15px;line-height:1.6;color:#3f3f46;">
+      ההדפסה החלה. נעדכן אותך שוב ברגע שהחבילה יוצאת לדרך.
+    </p>
+    ${renderItemsTable(args.items)}
+    <p style="font-size:12px;color:#a1a1aa;font-family:monospace;margin-top:16px;">
+      ${args.orderId}
+    </p>
+  `,
+  );
+  return send({
+    to: args.to,
+    subject: "ההזמנה שלך מ-Wallaura בייצור",
+    html,
+  });
+}
+
 // --- Owner notifications (sent to OWNER_EMAIL on every new order) ---
 
 export type OwnerOrderInput = {
   orderId: string;
-  productType?: ProductType | "mixed";
-  size: string;
-  quantity: number;
+  items: OrderItemLine[];
   totalAgorot: number;
   customerPhone: string;
   customerEmail: string | null;
-  imageUrl?: string | null;
   shippingName?: string;
   shippingStreet?: string;
   shippingCity?: string;
@@ -171,26 +222,43 @@ export type OwnerOrderInput = {
   fulfillmentStatus?: string | null;
 };
 
+function ownerItemsTable(items: OrderItemLine[]): string {
+  const rows = items
+    .map((it) => {
+      const variant = variantFor(it.productType, it.size);
+      const sizeLabel = variant ? variant.labelEn : it.size;
+      return `<tr style="border-top:1px solid #e4e4e7;">
+        <td style="padding:8px 0;width:64px;vertical-align:middle;">${
+          it.imageUrl
+            ? `<img src="${it.imageUrl}" alt="" style="width:48px;height:48px;border-radius:6px;border:1px solid #e4e4e7;object-fit:contain;background:#fff;">`
+            : ""
+        }</td>
+        <td style="padding:8px 12px;font-size:13px;">
+          <div><strong>${it.productType}</strong> · ${sizeLabel} · qty ${it.quantity}</div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;margin:8px 0 16px;">${rows}</table>`;
+}
+
 export async function sendOwnerOrderNotification(
   o: OwnerOrderInput,
 ): Promise<SendResult> {
   const ownerEmail = process.env.OWNER_EMAIL;
   if (!ownerEmail) return { kind: "skipped", reason: "no-owner-email" };
-  const productType: ProductType | "mixed" = isProductType(o.productType)
-    ? o.productType
-    : o.productType === "mixed"
-      ? "mixed"
-      : "sticker";
-  const variant =
-    productType !== "mixed" ? variantFor(productType, o.size) : null;
-  const sizeLabel = variant ? variant.labelEn : o.size;
-  const productTag = productType === "mixed" ? "mixed" : productType;
+  const totalQty = o.items.reduce((n, i) => n + i.quantity, 0);
+  const productTypes = [...new Set(o.items.map((i) => i.productType))].join("+");
+  const subjectSummary =
+    o.items.length === 1
+      ? `${o.items[0].productType} × ${o.items[0].quantity}`
+      : `${o.items.length} items / ${totalQty} units (${productTypes})`;
   const html = `<!doctype html>
 <html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b;background:#fafaf9;">
   <div style="max-width:560px;margin:0 auto;padding:24px;">
-    <h2 style="margin:0 0 12px;">New order · ${productTag} · ${sizeLabel} × ${o.quantity}</h2>
+    <h2 style="margin:0 0 12px;">New order · ${subjectSummary}</h2>
     <p style="font-size:14px;color:#3f3f46;margin:0 0 16px;">${formatIls(o.totalAgorot)} · order <code>${o.orderId}</code></p>
-    ${o.imageUrl ? `<div style="margin:16px 0;"><img src="${o.imageUrl}" alt="" style="max-width:240px;border-radius:8px;border:1px solid #e4e4e7;"></div>` : ""}
+    ${ownerItemsTable(o.items)}
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <tr><td style="padding:4px 0;color:#71717a;">Customer phone</td><td style="padding:4px 0;font-family:monospace;">+${o.customerPhone}</td></tr>
       <tr><td style="padding:4px 0;color:#71717a;">Customer email</td><td style="padding:4px 0;">${o.customerEmail ?? "—"}</td></tr>
@@ -200,7 +268,41 @@ export async function sendOwnerOrderNotification(
   </div></body></html>`;
   return send({
     to: ownerEmail,
-    subject: `[Wallaura] New order · ${sizeLabel} × ${o.quantity} · ${formatIls(o.totalAgorot)}`,
+    subject: `[Wallaura] New order · ${subjectSummary} · ${formatIls(o.totalAgorot)}`,
+    html,
+  });
+}
+
+// --- Owner status update (Prodigi stage transitions) ---
+
+export async function sendOwnerStatusUpdate(args: {
+  orderId: string;
+  prodigiOrderId: string;
+  stage: string;
+  trackingUrl?: string | null;
+  customerEmail?: string | null;
+}): Promise<SendResult> {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (!ownerEmail) return { kind: "skipped", reason: "no-owner-email" };
+  const html = `<!doctype html>
+<html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b;background:#fafaf9;">
+  <div style="max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="margin:0 0 8px;">Order status: ${args.stage}</h2>
+    <p style="font-size:13px;color:#71717a;margin:0 0 12px;">order <code>${args.orderId}</code> · prodigi <code>${args.prodigiOrderId}</code></p>
+    ${
+      args.trackingUrl
+        ? `<p><a href="${args.trackingUrl}">Tracking</a></p>`
+        : ""
+    }
+    ${
+      args.customerEmail
+        ? `<p style="font-size:13px;color:#71717a;">Customer: ${args.customerEmail}</p>`
+        : ""
+    }
+  </div></body></html>`;
+  return send({
+    to: ownerEmail,
+    subject: `[Wallaura] ${args.stage} · ${args.orderId}`,
     html,
   });
 }

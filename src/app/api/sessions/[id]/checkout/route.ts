@@ -142,15 +142,13 @@ export async function POST(
         .createSignedUrl(session.imagePath, 7 * 24 * 60 * 60);
       imageUrl = data?.signedUrl ?? null;
     }
+    const items = [{ productType, size, quantity, imageUrl }];
     const emailResult = address.email
       ? await sendOrderConfirmation({
           to: address.email,
           orderId: order.id,
-          productType,
-          size,
-          quantity,
+          items,
           totalAgorot: price.totalAgorot,
-          imageUrl,
           shippingName: address.name,
           shippingCity: address.city,
         })
@@ -160,13 +158,10 @@ export async function POST(
     // them in the Prodigi dashboard.
     const ownerEmailResult = await sendOwnerOrderNotification({
       orderId: order.id,
-      productType,
-      size,
-      quantity,
+      items,
       totalAgorot: price.totalAgorot,
       customerPhone: session.phoneE164,
       customerEmail: address.email ?? null,
-      imageUrl,
       shippingName: address.name,
       shippingStreet: address.street,
       shippingCity: address.city,

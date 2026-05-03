@@ -238,36 +238,27 @@ export async function POST(req: Request) {
     await markCartPaid(cartId, "test-mode");
     const submission = await submitCartForPrinting(cartId);
 
-    // Best-effort confirmation email — picks the first item's image as the
-    // visual and lists totals at the cart level. Skips silently if RESEND
-    // isn't configured or no email was given.
-    let firstImageUrl: string | null = null;
-    if (resolved[0]?.imagePath) {
-      const { data } = await sb.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(resolved[0].imagePath, 7 * 24 * 60 * 60);
-      firstImageUrl = data?.signedUrl ?? null;
-    }
-
-    const totalQuantity = resolved.reduce((n, r) => n + r.quantity, 0);
-    // Mixed cart: if all lines share the same product type, show that
-    // type; otherwise mark the order as "mixed" so the email copy uses
-    // generic wording ("המוצרים").
-    const productTypes = new Set(resolved.map((r) => r.productType));
-    const cartProductType: ProductType | "mixed" =
-      productTypes.size === 1
-        ? (resolved[0].productType as ProductType)
-        : "mixed";
+    // One signed image URL per line item so the email shows every design.
+    const items = await Promise.all(
+      resolved.map(async (r) => {
+        const { data } = await sb.storage
+          .from(STORAGE_BUCKET)
+          .createSignedUrl(r.imagePath, 7 * 24 * 60 * 60);
+        return {
+          productType: r.productType,
+          size: r.size,
+          quantity: r.quantity,
+          imageUrl: data?.signedUrl ?? null,
+        };
+      }),
+    );
 
     const customerEmailResult = address.email
       ? await sendOrderConfirmation({
           to: address.email,
           orderId: cartId,
-          productType: cartProductType,
-          size: resolved.length === 1 ? resolved[0].size : "mixed",
-          quantity: totalQuantity,
+          items,
           totalAgorot: finalAgorot,
-          imageUrl: firstImageUrl,
           shippingName: address.name,
           shippingCity: address.city,
         })
@@ -275,13 +266,10 @@ export async function POST(req: Request) {
 
     const ownerEmailResult = await sendOwnerOrderNotification({
       orderId: cartId,
-      productType: cartProductType,
-      size: resolved.length === 1 ? resolved[0].size : `mixed (${resolved.length} items)`,
-      quantity: totalQuantity,
+      items,
       totalAgorot: finalAgorot,
       customerPhone: cartPhone,
       customerEmail: address.email ?? null,
-      imageUrl: firstImageUrl,
       shippingName: address.name,
       shippingStreet: address.street,
       shippingCity: address.city,

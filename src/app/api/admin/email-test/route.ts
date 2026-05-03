@@ -19,10 +19,11 @@ export async function GET(req: Request) {
   const result = await sendOrderConfirmation({
     to,
     orderId: "test-order-id-0001",
-    size: "medium",
-    quantity: 3,
+    items: [
+      { productType: "sticker", size: "medium", quantity: 3, imageUrl: null },
+      { productType: "magnet", size: "small", quantity: 1, imageUrl: null },
+    ],
     totalAgorot: 9000,
-    imageUrl: null,
     shippingName: "Test Buyer",
     shippingCity: "Tel Aviv",
   });

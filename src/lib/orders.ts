@@ -225,6 +225,44 @@ export async function markOrderShipped(args: {
   };
 }
 
+// --- Prodigi-side lookup ---
+
+/** All orders attached to a Prodigi order id (single OR multi-item carts). */
+export async function getOrdersByProdigi(
+  prodigiOrderId: string,
+): Promise<OrderRow[]> {
+  const { data } = await serverClient()
+    .from("orders")
+    .select()
+    .eq("printful_order_id", prodigiOrderId);
+  return (data as OrderRow[]) ?? [];
+}
+
+/**
+ * Atomic stage transition: bumps printful_status only on rows that aren't
+ * already at that stage (or beyond — the caller specifies the precondition).
+ * Returns rows that actually transitioned. Use to gate "this is the first
+ * time we've seen X" notifications under concurrent webhook delivery.
+ */
+export async function markOrdersStageIfPriorThan(args: {
+  prodigiOrderId: string;
+  newStage: string;
+  /** Statuses considered "already at or beyond" — these rows are skipped. */
+  skipIfStatusIn: string[];
+}): Promise<OrderRow[]> {
+  const sb = serverClient();
+  let q = sb
+    .from("orders")
+    .update({ printful_status: args.newStage })
+    .eq("printful_order_id", args.prodigiOrderId);
+  if (args.skipIfStatusIn.length > 0) {
+    // Postgres `not.in` filter — rows with these statuses are skipped.
+    q = q.not("printful_status", "in", `(${args.skipIfStatusIn.map((s) => `"${s}"`).join(",")})`);
+  }
+  const { data } = await q.select();
+  return (data as OrderRow[]) ?? [];
+}
+
 // --- Cart (multi-item) helpers ---
 
 export async function getCartOrders(cartId: string): Promise<OrderRow[]> {

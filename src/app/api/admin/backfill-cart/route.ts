@@ -50,25 +50,24 @@ export async function POST(req: Request) {
     const first = justPaid[0];
     const a = first.shipping_address;
     const totalAgorot = justPaid.reduce((n, r) => n + (r.total_agorot ?? 0), 0);
-    const totalQty = justPaid.reduce((n, r) => n + r.quantity, 0);
 
-    const productTypes = new Set(justPaid.map((r) => r.product_type));
-    const cartProductType: ProductType | "mixed" =
-      productTypes.size === 1 && isProductType(first.product_type)
-        ? (first.product_type as ProductType)
-        : "mixed";
-
-    const imageUrl = await signedImage(first.print_image_url || first.image_url);
+    const items = await Promise.all(
+      justPaid.map(async (r) => ({
+        productType: isProductType(r.product_type)
+          ? (r.product_type as ProductType)
+          : ("sticker" as ProductType),
+        size: r.size_mm,
+        quantity: r.quantity,
+        imageUrl: await signedImage(r.print_image_url || r.image_url),
+      })),
+    );
 
     if (first.email) {
       email = await sendOrderConfirmation({
         to: first.email,
         orderId: cartId,
-        productType: cartProductType,
-        size: justPaid.length === 1 ? justPaid[0].size_mm : "mixed",
-        quantity: totalQty,
+        items,
         totalAgorot,
-        imageUrl,
         shippingName: a.name,
         shippingCity: a.city,
       });
@@ -78,16 +77,10 @@ export async function POST(req: Request) {
 
     ownerEmail = await sendOwnerOrderNotification({
       orderId: cartId,
-      productType: cartProductType,
-      size:
-        justPaid.length === 1
-          ? justPaid[0].size_mm
-          : `mixed (${justPaid.length} items)`,
-      quantity: totalQty,
+      items,
       totalAgorot,
       customerPhone: first.phone_e164,
       customerEmail: first.email,
-      imageUrl,
       shippingName: a.name,
       shippingStreet: a.street,
       shippingCity: a.city,
