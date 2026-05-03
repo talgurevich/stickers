@@ -14,6 +14,37 @@ import {
 const HERO_IMAGE_URL =
   "https://images.unsplash.com/photo-1572950947476-26a6e4111e80?fm=jpg&q=70&w=2400&auto=format&fit=crop";
 
+// Satirical "testimonials" — none of these people exist. Tone is whimsical
+// and self-aware; they punch up the cultural absurdity of WhatsApp stickers
+// becoming physical objects.
+const TESTIMONIALS: { quote: string; byline: string }[] = [
+  {
+    quote:
+      "קניתי 20 מדבקות של החתול שלי. הוא לא יודע. כנראה לא ידע לעולם. אני אדם מאושר יותר.",
+    byline: "מיכל, 34, ראשון לציון",
+  },
+  {
+    quote:
+      "חשבתי שזה רעיון מטופש. הוא באמת מטופש. הזמנתי בכל זאת. אני שמח שהזמנתי. אני מבולבל.",
+    byline: "עופר, 45, חיפה",
+  },
+  {
+    quote:
+      "אמא שלי שלחה לי בוואטסאפ סטיקר של עצמה אוכלת חומוס. עכשיו זה קעקוע זמני על היד שלי. אני בן 32.",
+    byline: "יותם, ירושלים",
+  },
+  {
+    quote:
+      "כמומחה לתחום הדבק, אני מאשר: איכות יוצאת דופן ביחס לקטגוריה.",
+    byline: "ד״ר דן ברק (תואר לא קיים)",
+  },
+  {
+    quote:
+      "זה עבד. המדבקה הגיעה. דבקה לקיר. אני לא יודע מה אתם רוצים שאומר.",
+    byline: "רן, מהנדס",
+  },
+];
+
 export default function Home() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
@@ -216,6 +247,25 @@ export default function Home() {
             לכניסה לחשבון
           </a>
         </div>
+
+        <section className="space-y-4 pt-6">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-zinc-200/80">
+            המלצות לקוחות (כביכול)
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {TESTIMONIALS.map((t, i) => (
+              <li
+                key={i}
+                className="rounded-xl border border-white/20 bg-white/10 p-4 text-right backdrop-blur-sm"
+              >
+                <p className="text-sm leading-relaxed text-white">
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <p className="mt-2 text-[11px] text-zinc-300">— {t.byline}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <RecentFeed />
       </div>
