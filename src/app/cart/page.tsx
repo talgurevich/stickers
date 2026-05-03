@@ -380,7 +380,7 @@ export default function CartPage() {
               disabled={!canPay || busy}
               className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-full bg-zinc-900 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
-              {busy ? "שולח הזמנה..." : "אישור הזמנה (מצב בדיקה)"}
+              {busy ? "שולח הזמנה..." : "מעבר לתשלום"}
             </button>
             {err && (
               <pre className="rounded-md bg-red-50 p-3 text-right text-xs text-red-900 whitespace-pre-wrap dark:bg-red-950/40 dark:text-red-200">
@@ -388,8 +388,7 @@ export default function CartPage() {
               </pre>
             )}
             <p className="text-xs text-zinc-500">
-              מצב בדיקה — אין חיוב כרגע. ההזמנה נשלחת ל־Prodigi (UK)
-              כטיוטה לאישור; משלוח 7-21 ימי עסקים לפי מדינת היעד.
+              משלוח 7-21 ימי עסקים לפי מדינת היעד. החיוב מתבצע באמצעות PayPlus.
             </p>
           </div>
         </aside>

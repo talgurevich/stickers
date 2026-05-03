@@ -91,8 +91,8 @@ export default async function CartConfirmationPage({
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             {rows.length === 1
-              ? "מצב נוכחי: בדיקה — אין חיוב, ההזמנה נשלחה ל־Prodigi כטיוטה."
-              : `${rows.length} פריטים נשלחים במשלוח אחד. מצב בדיקה — אין חיוב, ההזמנה נשלחה ל־Prodigi כטיוטה.`}
+              ? "תודה! ההזמנה נשלחה לייצור. נשלח עדכון במייל כשתצא למשלוח."
+              : `תודה! ${rows.length} פריטים נשלחים במשלוח אחד. נשלח עדכון במייל כשהחבילה תצא.`}
           </p>
         </div>
 

@@ -32,24 +32,42 @@ export const runtime = "nodejs";
 // Always respond 200 — non-2xx makes PayPlus retry, and our processing is
 // idempotent (markOrderPaid / markCartPaid filter on paid_at IS NULL).
 export async function POST(req: Request) {
+  const contentType = req.headers.get("content-type");
   const raw = await req.text();
-  const payload = parseBody(raw, req.headers.get("content-type"));
+  const payload = parseBody(raw, contentType);
 
-  const transactionUid =
-    str(payload.transaction_uid) ||
-    str(payload.transactionUid) ||
-    null;
-  const paymentRequestUid =
-    str(payload.payment_request_uid) ||
-    str(payload.paymentRequestUid) ||
-    null;
-  const moreInfo = str(payload.more_info) || str(payload.moreInfo) || null;
+  // Log raw body once so we can diagnose unexpected payload shapes.
+  console.log("[payplus webhook] raw", {
+    contentType,
+    length: raw.length,
+    bodyPreview: raw.slice(0, 2000),
+  });
+
+  const transactionUid = pick(payload, [
+    "transaction_uid",
+    "transactionUid",
+    "transaction.uid",
+    "data.transaction_uid",
+    "transaction.transaction_uid",
+  ]);
+  const paymentRequestUid = pick(payload, [
+    "payment_request_uid",
+    "paymentRequestUid",
+    "data.payment_request_uid",
+    "transaction.payment_request_uid",
+  ]);
+  const moreInfo = pick(payload, [
+    "more_info",
+    "moreInfo",
+    "transaction.more_info",
+    "data.more_info",
+  ]);
 
   console.log("[payplus webhook] received", {
     transactionUid,
     paymentRequestUid,
     moreInfo,
-    statusCodeFromBody: str(payload.status_code),
+    keys: Object.keys(payload),
   });
 
   if (!transactionUid && !paymentRequestUid) {
@@ -266,6 +284,25 @@ function str(v: unknown): string {
   if (typeof v === "string") return v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "";
+}
+
+// Walk dot-paths (e.g. "transaction.uid") through nested objects.
+function pick(obj: Record<string, unknown>, paths: string[]): string | null {
+  for (const p of paths) {
+    const parts = p.split(".");
+    let cur: unknown = obj;
+    for (const part of parts) {
+      if (cur && typeof cur === "object" && part in (cur as Record<string, unknown>)) {
+        cur = (cur as Record<string, unknown>)[part];
+      } else {
+        cur = undefined;
+        break;
+      }
+    }
+    const s = str(cur);
+    if (s) return s;
+  }
+  return null;
 }
 
 function parseMoreInfo(
