@@ -72,6 +72,43 @@ export async function getOrder(id: string): Promise<OrderRow | null> {
   return (data as OrderRow) ?? null;
 }
 
+/**
+ * Atomic "claim" of an unpaid order: returns the row only if THIS call
+ * transitioned paid_at from null → set. Returns null if the order was
+ * already paid by a concurrent caller (typical when PayPlus retries the IPN).
+ *
+ * Use from idempotent code paths (webhook) to gate post-payment side
+ * effects. For "force mark as paid" admin paths, use markOrderPaid which
+ * always returns the current row.
+ */
+export async function markOrderPaidIfUnpaid(
+  id: string,
+  payplusTransactionId: string | null,
+): Promise<OrderRow | null> {
+  const { data: justPaid } = await serverClient()
+    .from("orders")
+    .update({
+      payplus_transaction_id: payplusTransactionId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .is("paid_at", null)
+    .select()
+    .maybeSingle();
+
+  if (!justPaid) return null;
+
+  const row = justPaid as OrderRow;
+  void notifyPaymentCompleted({
+    orderId: row.id,
+    phone: row.phone_e164,
+    email: row.email,
+    totalAgorot: row.total_agorot,
+    source: payplusTransactionId ?? "unknown",
+  });
+  return row;
+}
+
 export async function markOrderPaid(
   id: string,
   payplusTransactionId: string | null,

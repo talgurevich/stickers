@@ -32,12 +32,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "cart-not-found", cartId }, { status: 404 });
   }
 
-  const wasAlreadyPaid = before.every((r) => r.paid_at);
+  // Atomic claim — same gate as the webhook. Concurrent backfill+webhook can't
+  // both submit to Prodigi. If the cart is already paid (markCartPaid returns []),
+  // we skip submission entirely; the rare "paid in DB but never made it to
+  // Prodigi" case must be handled by clearing printful_order_id manually first.
   const justPaid = await markCartPaid(cartId, body.transactionId ?? "backfill");
-  const submission = await submitCartForPrinting(cartId);
+  const wasAlreadyPaid = justPaid.length === 0;
 
   let email: unknown = { kind: "skipped", reason: "already-paid" };
   let ownerEmail: unknown = { kind: "skipped", reason: "already-paid" };
+  const submission =
+    justPaid.length > 0
+      ? await submitCartForPrinting(cartId)
+      : ({ kind: "already-submitted", fulfillmentOrderId: "" } as const);
 
   if (!wasAlreadyPaid && justPaid.length > 0) {
     const first = justPaid[0];

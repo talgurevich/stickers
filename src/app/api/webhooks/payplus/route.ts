@@ -3,7 +3,7 @@ import { verifyTransaction } from "@/lib/payplus";
 import {
   getOrder,
   getCartOrders,
-  markOrderPaid,
+  markOrderPaidIfUnpaid,
   markCartPaid,
   submitOrderForPrinting,
   submitCartForPrinting,
@@ -141,12 +141,18 @@ async function handleOrder(orderId: string, transactionUid: string | null) {
     return NextResponse.json({ ok: false, reason: "order-not-found", orderId });
   }
 
-  const wasAlreadyPaid = Boolean(beforeOrder.paid_at);
-  const paidRow = await markOrderPaid(orderId, transactionUid);
+  // Atomic claim: only the IPN invocation that flips paid_at gets the row
+  // back. Concurrent invocations (PayPlus IPN retries fire ~60ms apart) get
+  // null and short-circuit — no double Prodigi submission, no double email.
+  const paidRow = await markOrderPaidIfUnpaid(orderId, transactionUid);
+  if (!paidRow) {
+    console.log("[payplus webhook] order already processed, skipping", { orderId });
+    return NextResponse.json({ ok: true, orderId, alreadyProcessed: true });
+  }
+
   const submission = await submitOrderForPrinting(orderId);
 
-  // Only fire emails on the first paid event, not on PayPlus retries.
-  if (!wasAlreadyPaid && paidRow) {
+  {
     const productType: ProductType = isProductType(paidRow.product_type)
       ? paidRow.product_type
       : "sticker";
@@ -193,7 +199,7 @@ async function handleOrder(orderId: string, transactionUid: string | null) {
     ok: true,
     orderId,
     submission,
-    firstPayment: !wasAlreadyPaid,
+    firstPayment: true,
   });
 }
 
@@ -204,11 +210,19 @@ async function handleCart(cartId: string, transactionUid: string | null) {
     return NextResponse.json({ ok: false, reason: "cart-not-found", cartId });
   }
 
-  const wasAlreadyPaid = before.every((r) => r.paid_at);
+  // Atomic claim: markCartPaid filters on `paid_at IS NULL`, so only the
+  // first concurrent caller gets non-empty rows back. Subsequent IPN retries
+  // (PayPlus fires ~60ms apart) get [] and short-circuit — no double
+  // Prodigi submission, no double email.
   const justPaid = await markCartPaid(cartId, transactionUid);
+  if (justPaid.length === 0) {
+    console.log("[payplus webhook] cart already processed, skipping", { cartId });
+    return NextResponse.json({ ok: true, cartId, alreadyProcessed: true });
+  }
+
   const submission = await submitCartForPrinting(cartId);
 
-  if (!wasAlreadyPaid && justPaid.length > 0) {
+  {
     const first = justPaid[0];
     const a = first.shipping_address;
     const totalAgorot = justPaid.reduce((n, r) => n + (r.total_agorot ?? 0), 0);
@@ -265,7 +279,7 @@ async function handleCart(cartId: string, transactionUid: string | null) {
     ok: true,
     cartId,
     submission,
-    firstPayment: !wasAlreadyPaid,
+    firstPayment: true,
     rows: justPaid.length,
   });
 }
