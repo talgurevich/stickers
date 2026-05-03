@@ -11,10 +11,35 @@ const heebo = Heebo({
   display: "swap",
 });
 
+// Required so relative URLs (including the auto-generated opengraph-image.tsx
+// route at /opengraph-image) become absolute in the meta tags. LinkedIn,
+// WhatsApp, and iMessage scrapers won't follow relative `og:image` URLs.
+const SITE_URL = "https://www.wallaura.art";
+
+const SHARE_TITLE = "Wallaura · הסטיקר ההוא מהוואטסאפ — עכשיו על הקיר";
+const SHARE_DESCRIPTION =
+  "שולחים תמונה או סטיקר בוואטסאפ. מקבלים מדבקה, מגנט או קעקוע זמני הביתה. בלי אפליקציה, בלי עיצוב.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Wallaura · הדפסה אישית מהוואטסאפ",
   description:
     "התמונות והסטיקרים שלך מהוואטסאפ — מדבקות, מגנטים וקעקועים זמניים. הדפסה ומשלוח עד הבית.",
+  openGraph: {
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: "Wallaura",
+    locale: "he_IL",
+    type: "website",
+    // The actual image comes from src/app/opengraph-image.tsx — Next.js
+    // wires it automatically when the file exists in the route segment.
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
