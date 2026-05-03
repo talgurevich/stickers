@@ -272,20 +272,20 @@ export default function ConfigurePage({
                       setQuantity(pkg.quantity);
                       setShowCustomQty(false);
                     }}
-                    className={`relative flex flex-col items-center gap-1 rounded-xl border p-3 text-center transition-colors ${
+                    className={`relative flex flex-col items-center gap-1 rounded-xl border px-3 pb-3 pt-5 text-center transition-colors ${
                       isSelected
                         ? "border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-950/30"
                         : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
                     }`}
                   >
                     {pkg.isRecommended && (
-                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
                         מומלץ
                       </span>
                     )}
                     {pkg.isBestValue && !pkg.isRecommended && (
-                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        הכי משתלם
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        משתלם
                       </span>
                     )}
                     <div className="text-base font-bold">
