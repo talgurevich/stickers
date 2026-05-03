@@ -340,7 +340,7 @@ export default function ConfigurePage({
                   </button>
                   {price && (
                     <span className="text-xs font-medium text-emerald-600">
-                      {formatIls(price.perUnitAgorot)} ליחידה
+                      {formatIls(Math.round(price.productAgorot / quantity))} ליחידה
                     </span>
                   )}
                 </div>
@@ -399,11 +399,11 @@ export default function ConfigurePage({
                   <div className="flex items-baseline justify-between">
                     <dt className="text-zinc-500">מחיר ליחידה</dt>
                     <dd className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatIls(price.perUnitAgorot)}
+                      {formatIls(Math.round(price.productAgorot / quantity))}
                     </dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-zinc-500">סך הפריט</dt>
+                    <dt className="text-zinc-500">סך הפריט ({quantity} × יחידה)</dt>
                     <dd className="font-semibold">
                       {price.bulkDiscount > 0 && (
                         <span className="me-2 text-xs text-zinc-400 line-through">
@@ -414,7 +414,7 @@ export default function ConfigurePage({
                     </dd>
                   </div>
                   <p className="text-xs text-zinc-500">
-                    מחיר ליחידה כולל משלוח לכלל ההזמנה. הסכום הסופי בסל.
+                    המחירים אינם כוללים משלוח. עלות המשלוח תתווסף בסל לפי מדינת היעד.
                   </p>
                 </dl>
               </>
