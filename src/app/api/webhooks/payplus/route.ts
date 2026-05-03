@@ -44,35 +44,54 @@ export async function POST(req: Request) {
   });
 
   const transactionUid = pick(payload, [
+    "transaction.uid",
     "transaction_uid",
     "transactionUid",
-    "transaction.uid",
     "data.transaction_uid",
     "transaction.transaction_uid",
   ]);
   const paymentRequestUid = pick(payload, [
+    "transaction.payment_page_request_uid",
     "payment_request_uid",
     "paymentRequestUid",
     "data.payment_request_uid",
     "transaction.payment_request_uid",
   ]);
   const moreInfo = pick(payload, [
+    "transaction.more_info",
     "more_info",
     "moreInfo",
-    "transaction.more_info",
     "data.more_info",
+  ]);
+  // PayPlus puts the success/failure code right in the IPN body. "000" = paid.
+  const statusCodeFromBody = pick(payload, [
+    "transaction.status_code",
+    "status_code",
+    "data.status_code",
   ]);
 
   console.log("[payplus webhook] received", {
     transactionUid,
     paymentRequestUid,
     moreInfo,
-    keys: Object.keys(payload),
+    statusCodeFromBody,
   });
 
   if (!transactionUid && !paymentRequestUid) {
     console.warn("[payplus webhook] missing transaction id", { payload });
     return NextResponse.json({ ok: false, reason: "missing-transaction-id" });
+  }
+
+  // The IPN body itself carries status_code "000" for success. Use that as
+  // the source of truth, then re-query PayPlus as an authenticity check
+  // (forged IPN won't have a real transaction backing it).
+  if (statusCodeFromBody !== "000") {
+    console.warn("[payplus webhook] non-success status", { statusCodeFromBody });
+    return NextResponse.json({
+      ok: false,
+      reason: "non-success-status",
+      statusCode: statusCodeFromBody,
+    });
   }
 
   let verified;
@@ -98,7 +117,8 @@ export async function POST(req: Request) {
   }
 
   // Prefer the more_info from the verification response (PayPlus-issued)
-  // over what the IPN body gave us (could be tampered).
+  // over what the IPN body gave us (could be tampered with). Fall back to
+  // the IPN body if verify didn't echo it.
   const trustedMoreInfo = verified.moreInfo ?? moreInfo;
   const target = parseMoreInfo(trustedMoreInfo);
   if (!target) {

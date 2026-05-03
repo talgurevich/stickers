@@ -148,6 +148,11 @@ export async function verifyTransaction(args: {
   });
 
   const text = await res.text();
+  console.log("[payplus verify] raw", {
+    httpStatus: res.status,
+    bodyPreview: text.slice(0, 1500),
+  });
+
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -155,20 +160,30 @@ export async function verifyTransaction(args: {
     return { ok: false, statusCode: null, moreInfo: null, amount: null, raw: text };
   }
 
-  const j = json as {
-    results?: { status?: string };
-    data?: {
-      result?: {
-        status_code?: string;
-        more_info?: string;
-        amount?: number | string;
-      };
-    };
-  };
-
-  const result = j.data?.result;
-  const statusCode = result?.status_code ?? null;
-  const amountRaw = result?.amount;
+  // PayPlus's verify response shape isn't documented and varies — pull
+  // status_code from any known nesting (top level / data.result / transaction).
+  const candidates = [
+    (json as Record<string, unknown>)?.transaction,
+    (json as { data?: { result?: unknown } })?.data?.result,
+    (json as { data?: unknown })?.data,
+    json,
+  ];
+  let statusCode: string | null = null;
+  let moreInfo: string | null = null;
+  let amountRaw: unknown = null;
+  for (const c of candidates) {
+    if (!c || typeof c !== "object") continue;
+    const obj = c as Record<string, unknown>;
+    if (statusCode == null && typeof obj.status_code === "string") {
+      statusCode = obj.status_code;
+    }
+    if (moreInfo == null && typeof obj.more_info === "string") {
+      moreInfo = obj.more_info;
+    }
+    if (amountRaw == null && (typeof obj.amount === "number" || typeof obj.amount === "string")) {
+      amountRaw = obj.amount;
+    }
+  }
   const amount =
     typeof amountRaw === "number"
       ? amountRaw
@@ -176,10 +191,17 @@ export async function verifyTransaction(args: {
         ? Number(amountRaw)
         : null;
 
+  const resultsStatus = (json as { results?: { status?: string } })?.results?.status;
+  // "Verified" means: PayPlus's IPN endpoint either echoed status_code=000,
+  // OR it acknowledged the request as successful (results.status=success).
+  // The IPN body itself carries status_code=000 — re-querying is a forgery
+  // check, not the source of truth.
+  const ok = statusCode === "000" || resultsStatus === "success";
+
   return {
-    ok: j.results?.status === "success" && statusCode === "000",
+    ok,
     statusCode,
-    moreInfo: result?.more_info ?? null,
+    moreInfo,
     amount: Number.isFinite(amount) ? (amount as number) : null,
     raw: json,
   };
