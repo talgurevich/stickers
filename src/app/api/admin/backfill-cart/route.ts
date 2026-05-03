@@ -1,0 +1,115 @@
+import { NextResponse } from "next/server";
+import {
+  getCartOrders,
+  markCartPaid,
+  submitCartForPrinting,
+} from "@/lib/orders";
+import { sendOrderConfirmation, sendOwnerOrderNotification } from "@/lib/email";
+import { serverClient, STORAGE_BUCKET } from "@/lib/supabase";
+import { isProductType, type ProductType } from "@/lib/prodigi-catalog";
+
+export const runtime = "nodejs";
+
+// One-shot backfill for carts that were paid via PayPlus but never made it
+// through the webhook flow (e.g. early IPN parsing bugs). Mirrors the
+// webhook's cart handler. Idempotent — safe to re-run.
+//
+// POST /api/admin/backfill-cart  body: { cartId: string, transactionId?: string }
+export async function POST(req: Request) {
+  let body: { cartId?: string; transactionId?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "bad-json" }, { status: 400 });
+  }
+  const cartId = body.cartId;
+  if (!cartId) {
+    return NextResponse.json({ error: "missing-cartId" }, { status: 400 });
+  }
+
+  const before = await getCartOrders(cartId);
+  if (before.length === 0) {
+    return NextResponse.json({ error: "cart-not-found", cartId }, { status: 404 });
+  }
+
+  const wasAlreadyPaid = before.every((r) => r.paid_at);
+  const justPaid = await markCartPaid(cartId, body.transactionId ?? "backfill");
+  const submission = await submitCartForPrinting(cartId);
+
+  let email: unknown = { kind: "skipped", reason: "already-paid" };
+  let ownerEmail: unknown = { kind: "skipped", reason: "already-paid" };
+
+  if (!wasAlreadyPaid && justPaid.length > 0) {
+    const first = justPaid[0];
+    const a = first.shipping_address;
+    const totalAgorot = justPaid.reduce((n, r) => n + (r.total_agorot ?? 0), 0);
+    const totalQty = justPaid.reduce((n, r) => n + r.quantity, 0);
+
+    const productTypes = new Set(justPaid.map((r) => r.product_type));
+    const cartProductType: ProductType | "mixed" =
+      productTypes.size === 1 && isProductType(first.product_type)
+        ? (first.product_type as ProductType)
+        : "mixed";
+
+    const imageUrl = await signedImage(first.print_image_url || first.image_url);
+
+    if (first.email) {
+      email = await sendOrderConfirmation({
+        to: first.email,
+        orderId: cartId,
+        productType: cartProductType,
+        size: justPaid.length === 1 ? justPaid[0].size_mm : "mixed",
+        quantity: totalQty,
+        totalAgorot,
+        imageUrl,
+        shippingName: a.name,
+        shippingCity: a.city,
+      });
+    } else {
+      email = { kind: "skipped", reason: "no-email" };
+    }
+
+    ownerEmail = await sendOwnerOrderNotification({
+      orderId: cartId,
+      productType: cartProductType,
+      size:
+        justPaid.length === 1
+          ? justPaid[0].size_mm
+          : `mixed (${justPaid.length} items)`,
+      quantity: totalQty,
+      totalAgorot,
+      customerPhone: first.phone_e164,
+      customerEmail: first.email,
+      imageUrl,
+      shippingName: a.name,
+      shippingStreet: a.street,
+      shippingCity: a.city,
+      shippingZip: a.zip,
+      fulfillmentId:
+        submission.kind === "submitted" || submission.kind === "already-submitted"
+          ? submission.fulfillmentOrderId
+          : null,
+      fulfillmentStatus:
+        submission.kind === "error" ? `error: ${submission.message}` : submission.kind,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    cartId,
+    rowsBefore: before.length,
+    rowsPaidNow: justPaid.length,
+    wasAlreadyPaid,
+    submission,
+    email,
+    ownerEmail,
+  });
+}
+
+async function signedImage(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data } = await serverClient()
+    .storage.from(STORAGE_BUCKET)
+    .createSignedUrl(path, 7 * 24 * 60 * 60);
+  return data?.signedUrl ?? null;
+}

@@ -9,7 +9,7 @@ export async function GET() {
   const { data, error } = await serverClient()
     .from("orders")
     .select(
-      "id, phone_e164, size_mm, cut_type, quantity, total_agorot, paid_at, printful_order_id, printful_status, created_at",
+      "id, cart_id, phone_e164, size_mm, cut_type, quantity, total_agorot, paid_at, printful_order_id, printful_status, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(10);
