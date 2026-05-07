@@ -8,7 +8,11 @@
 // circuit if a fulfillment id already exists.
 
 import { serverClient, STORAGE_BUCKET } from "./supabase";
-import { createOrder as prodigiCreateOrder, ProdigiError } from "./prodigi";
+import {
+  createOrder as prodigiCreateOrder,
+  ProdigiError,
+  prodigiCallbackUrl,
+} from "./prodigi";
 import { notifyPaymentCompleted } from "./slack";
 import {
   isProductType,
@@ -361,6 +365,7 @@ export async function submitCartForPrinting(
     const r = await prodigiCreateOrder({
       merchantReference: cartId,
       shippingMethod,
+      callbackUrl: prodigiCallbackUrl(),
       recipient: {
         name: a.name,
         email: a.email ?? first.email ?? undefined,
@@ -431,6 +436,7 @@ export async function submitOrderForPrinting(
       // picks the cheapest available per country (Budget for IL/EU/UK/CA/AU/TH,
       // Standard for US). Hard-coding Budget would burn ~$36 on US orders.
       shippingMethod,
+      callbackUrl: prodigiCallbackUrl(),
       recipient: {
         name: a.name,
         email: a.email ?? order.email ?? undefined,

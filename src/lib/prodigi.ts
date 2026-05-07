@@ -95,7 +95,25 @@ export type ProdigiCreateOrder = {
   recipient: ProdigiRecipient;
   items: ProdigiOrderItem[];
   metadata?: Record<string, unknown>;
+  // Per-order callback URL. Prodigi POSTs status events here. We pass it
+  // per order rather than relying on a merchant-level dashboard config so
+  // the wiring travels with the code.
+  callbackUrl?: string;
 };
+
+/**
+ * URL Prodigi should POST status callbacks to for orders submitted from this
+ * deployment. Returns undefined when we don't have a usable public URL or
+ * webhook secret — in dev/local that means callbacks are skipped, which is
+ * what we want (Prodigi can't reach localhost anyway).
+ */
+export function prodigiCallbackUrl(): string | undefined {
+  const appUrl = process.env.APP_URL;
+  const secret = process.env.PRODIGI_WEBHOOK_SECRET;
+  if (!appUrl || !secret) return undefined;
+  if (!/^https:\/\//.test(appUrl)) return undefined;
+  return `${appUrl.replace(/\/$/, "")}/api/webhooks/prodigi?secret=${encodeURIComponent(secret)}`;
+}
 
 export type ProdigiOrderResponse = {
   outcome: string;
