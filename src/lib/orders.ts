@@ -7,6 +7,7 @@
 // Idempotent: callable multiple times for the same order — re-runs short-
 // circuit if a fulfillment id already exists.
 
+import sharp from "sharp";
 import { serverClient, STORAGE_BUCKET } from "./supabase";
 import {
   createOrder as prodigiCreateOrder,
@@ -18,6 +19,7 @@ import {
   isProductType,
   variantFor,
   type ProductType,
+  type ProductVariant,
   type StickerSize,
 } from "./prodigi-catalog";
 import {
@@ -152,15 +154,94 @@ export async function markOrderPaid(
   return (data as OrderRow) ?? null;
 }
 
-async function signPrintFile(order: OrderRow): Promise<string> {
-  const path = order.print_image_url || order.image_url;
-  const { data, error } = await serverClient()
-    .storage.from(STORAGE_BUCKET)
-    .createSignedUrl(path, PRINT_URL_TTL_SEC);
-  if (error || !data?.signedUrl) {
-    throw new Error(`failed to sign print file: ${error?.message ?? "no url"}`);
+/**
+ * Build the padded print-ready PNG for an order and return a signed URL.
+ *
+ * Prodigi receives this with `sizing: "fillPrintArea"` — meaning the asset is
+ * scaled to fully cover the print area and any aspect mismatch gets cropped.
+ * To keep the customer's artwork intact, we pre-pad with transparency to the
+ * variant's widthMm/heightMm aspect ratio (per variant, since stickers are
+ * square and tattoos are 2:3). Without this, a non-matching upload (e.g. a
+ * landscape logo onto a 5×7.5cm tattoo) loses its left/right edges in print.
+ *
+ * Padded file is stored at a separate path so order-history thumbnails and
+ * emails keep showing the customer's untouched original.
+ */
+async function buildAndSignPrintFile(
+  order: OrderRow,
+  variant: ProductVariant,
+): Promise<string> {
+  const sb = serverClient();
+  const sourcePath = order.print_image_url || order.image_url;
+
+  const { data: blob, error: dlErr } = await sb.storage
+    .from(STORAGE_BUCKET)
+    .download(sourcePath);
+  if (dlErr || !blob) {
+    throw new Error(
+      `failed to download source image: ${dlErr?.message ?? "no blob"}`,
+    );
   }
-  return data.signedUrl;
+  const sourceBuf = Buffer.from(await blob.arrayBuffer());
+
+  const meta = await sharp(sourceBuf).metadata();
+  if (!meta.width || !meta.height) {
+    throw new Error("source image missing dimensions");
+  }
+
+  const targetAspect = variant.widthMm / variant.heightMm;
+  const sourceAspect = meta.width / meta.height;
+
+  let top = 0;
+  let bottom = 0;
+  let left = 0;
+  let right = 0;
+  if (sourceAspect > targetAspect) {
+    // Source wider than target — pad top/bottom.
+    const targetH = Math.round(meta.width / targetAspect);
+    const extra = targetH - meta.height;
+    top = Math.floor(extra / 2);
+    bottom = extra - top;
+  } else if (sourceAspect < targetAspect) {
+    // Source narrower than target — pad left/right.
+    const targetW = Math.round(meta.height * targetAspect);
+    const extra = targetW - meta.width;
+    left = Math.floor(extra / 2);
+    right = extra - left;
+  }
+
+  const paddedBuf = await sharp(sourceBuf)
+    .ensureAlpha()
+    .extend({
+      top,
+      bottom,
+      left,
+      right,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+
+  const printPath = `print/${order.id}-${variant.sku}.png`;
+  const up = await sb.storage
+    .from(STORAGE_BUCKET)
+    .upload(printPath, paddedBuf, {
+      contentType: "image/png",
+      upsert: true,
+    });
+  if (up.error) {
+    throw new Error(`failed to upload print file: ${up.error.message}`);
+  }
+
+  const { data: signed, error: signErr } = await sb.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(printPath, PRINT_URL_TTL_SEC);
+  if (signErr || !signed?.signedUrl) {
+    throw new Error(
+      `failed to sign print file: ${signErr?.message ?? "no url"}`,
+    );
+  }
+  return signed.signedUrl;
 }
 
 export type SubmitResult =
@@ -345,7 +426,7 @@ export async function submitCartForPrinting(
     if (!variant) {
       return { kind: "no-variant", size: `${productType}/${row.size_mm}` };
     }
-    const printFileUrl = await signPrintFile(row);
+    const printFileUrl = await buildAndSignPrintFile(row, variant);
     items.push({
       sku: variant.sku,
       copies: row.quantity,
@@ -422,7 +503,7 @@ export async function submitOrderForPrinting(
     return { kind: "no-variant", size: `${productType}/${order.size_mm}` };
   }
 
-  const printFileUrl = await signPrintFile(order);
+  const printFileUrl = await buildAndSignPrintFile(order, variant);
   const a = order.shipping_address;
   const country: CountryCode = isSupportedCountry(a.country) ? a.country : "IL";
   const shippingMethod = SHIPPING_METHOD_BY_COUNTRY[country];
